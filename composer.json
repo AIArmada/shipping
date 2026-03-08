@@ -1,0 +1,38 @@
+{
+    "name": "aiarmada/shipping",
+    "description": "Multi-carrier shipping abstraction layer for Laravel commerce applications",
+    "license": "MIT",
+    "homepage": "https://github.com/aiarmada/commerce",
+    "support": {
+        "issues": "https://github.com/aiarmada/commerce/issues",
+        "source": "https://github.com/aiarmada/commerce"
+    },
+    "require": {
+        "aiarmada/commerce-support": "self.version"
+    },
+    "suggest": {
+        "aiarmada/cart": "Required for free shipping evaluation with cart subtotals",
+        "aiarmada/orders": "Required for order fulfillment handler integration"
+    },
+    "autoload": {
+        "psr-4": {
+            "AIArmada\\Shipping\\": "src/",
+            "AIArmada\\Shipping\\Database\\Factories\\": "database/factories"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "AIArmada\\Shipping\\ShippingServiceProvider"
+            ],
+            "aliases": {
+                "Shipping": "AIArmada\\Shipping\\Facades\\Shipping"
+            }
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true
+    }
+}
