@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\Shipping;
 
 use AIArmada\Cart\Conditions\ConditionProviderRegistry;
+use AIArmada\Orders\Contracts\FulfillmentHandler;
 use AIArmada\Shipping\Cart\ShippingConditionProvider;
 use AIArmada\Shipping\Integrations\OrderFulfillmentHandler;
 use AIArmada\Shipping\Models\ReturnAuthorization;
@@ -68,12 +69,12 @@ final class ShippingServiceProvider extends PackageServiceProvider
      */
     protected function registerOrdersIntegration(): void
     {
-        if (! interface_exists(\AIArmada\Orders\Contracts\FulfillmentHandler::class)) {
+        if (! interface_exists(FulfillmentHandler::class)) {
             return;
         }
 
         $this->app->bind(
-            \AIArmada\Orders\Contracts\FulfillmentHandler::class,
+            FulfillmentHandler::class,
             function ($app): OrderFulfillmentHandler {
                 return new OrderFulfillmentHandler(
                     $app->make(ShippingManager::class),

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Integrations;
 
+use AIArmada\Inventory\Integrations\FulfillmentLocationService;
+use AIArmada\Inventory\Models\InventoryLocation;
 use AIArmada\Orders\Contracts\FulfillmentHandler;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Shipping\Data\AddressData;
@@ -243,10 +245,10 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
         $forcedLocationId = $shipmentData['location_id'] ?? null;
 
         // Try inventory-aware fulfillment location
-        if (class_exists(\AIArmada\Inventory\Integrations\FulfillmentLocationService::class)) {
+        if (class_exists(FulfillmentLocationService::class)) {
             try {
-                /** @var \AIArmada\Inventory\Integrations\FulfillmentLocationService|null $fulfillmentService */
-                $fulfillmentService = app(\AIArmada\Inventory\Integrations\FulfillmentLocationService::class);
+                /** @var FulfillmentLocationService|null $fulfillmentService */
+                $fulfillmentService = app(FulfillmentLocationService::class);
 
                 if ($fulfillmentService !== null) {
                     // Build items array from order
@@ -292,12 +294,12 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
      */
     private function getLocationById(string $locationId): ?object
     {
-        if (! class_exists(\AIArmada\Inventory\Models\InventoryLocation::class)) {
+        if (! class_exists(InventoryLocation::class)) {
             return null;
         }
 
         try {
-            return \AIArmada\Inventory\Models\InventoryLocation::find($locationId);
+            return InventoryLocation::find($locationId);
         } catch (Throwable) {
             return null;
         }

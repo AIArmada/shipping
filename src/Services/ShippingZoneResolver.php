@@ -9,6 +9,7 @@ use AIArmada\Shipping\Models\ShippingRate;
 use AIArmada\Shipping\Models\ShippingZone;
 use AIArmada\Shipping\Support\ShippingOwnerScope;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
@@ -153,10 +154,10 @@ class ShippingZoneResolver
      * Build a cache key from address and owner parameters.
      */
     /**
-     * @param  \Illuminate\Database\Eloquent\Builder<ShippingZone>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<ShippingZone>
+     * @param  Builder<ShippingZone>  $query
+     * @return Builder<ShippingZone>
      */
-    private function applyOwnerScope(\Illuminate\Database\Eloquent\Builder $query, ?string $ownerId, ?string $ownerType): \Illuminate\Database\Eloquent\Builder
+    private function applyOwnerScope(Builder $query, ?string $ownerId, ?string $ownerType): Builder
     {
         if (! ShippingOwnerScope::isEnabled()) {
             if ($ownerId !== null && $ownerType !== null) {

@@ -9,6 +9,7 @@ use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Shipping\Enums\ShipmentStatus as ShipmentStatusEnum;
 use AIArmada\Shipping\States\ShipmentStatus;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -37,13 +38,13 @@ use Spatie\ModelStates\HasStates;
  * @property int|null $cod_amount
  * @property string|null $label_url
  * @property string|null $label_format
- * @property \Carbon\CarbonInterface|null $shipped_at
- * @property \Carbon\CarbonInterface|null $estimated_delivery_at
- * @property \Carbon\CarbonInterface|null $delivered_at
- * @property \Carbon\CarbonInterface|null $last_tracking_sync
+ * @property CarbonInterface|null $shipped_at
+ * @property CarbonInterface|null $estimated_delivery_at
+ * @property CarbonInterface|null $delivered_at
+ * @property CarbonInterface|null $last_tracking_sync
  * @property array|null $metadata
- * @property \Carbon\CarbonInterface $created_at
- * @property \Carbon\CarbonInterface $updated_at
+ * @property CarbonInterface $created_at
+ * @property CarbonInterface $updated_at
  * @property-read Collection<int, ShipmentItem> $items
  * @property-read Collection<int, ShipmentEvent> $events
  * @property-read Collection<int, ShipmentLabel> $labels

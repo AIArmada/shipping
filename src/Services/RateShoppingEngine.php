@@ -16,6 +16,7 @@ use Illuminate\Cache\TaggableStore;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Concurrency;
 use Throwable;
 
 /**
@@ -225,7 +226,7 @@ class RateShoppingEngine
         })->all();
 
         // Execute all carrier calls concurrently
-        $results = \Illuminate\Support\Facades\Concurrency::run($tasks);
+        $results = Concurrency::run($tasks);
 
         // Merge all successful results
         $rates = collect();

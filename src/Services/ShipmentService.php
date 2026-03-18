@@ -28,6 +28,8 @@ use AIArmada\Shipping\States\ShipmentStatus as ShipmentStatusState;
 use AIArmada\Shipping\States\Shipped;
 use AIArmada\Shipping\Support\ShippingOwnerScope;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
 
@@ -145,7 +147,7 @@ class ShipmentService
             throw new ShipmentCreationFailedException($result->error ?? 'Unknown error');
         }
 
-        return \Illuminate\Support\Facades\DB::transaction(function () use ($shipment, $result, $driver) {
+        return DB::transaction(function () use ($shipment, $result, $driver) {
             $shipment = $shipment->status->transitionTo(Shipped::class);
             if (! $shipment instanceof Shipment) {
                 throw new RuntimeException('Failed to update shipment status.');
@@ -165,7 +167,7 @@ class ShipmentService
                     $this->generateLabel($shipment);
                 } catch (Throwable $e) {
                     // Log warning but don't fail the shipment
-                    \Illuminate\Support\Facades\Log::warning('Label generation failed for shipment', [
+                    Log::warning('Label generation failed for shipment', [
                         'shipment_id' => $shipment->id,
                         'tracking_number' => $shipment->tracking_number,
                         'error' => $e->getMessage(),
@@ -244,7 +246,7 @@ class ShipmentService
             $driver->cancelShipment($shipment->tracking_number);
         }
 
-        return \Illuminate\Support\Facades\DB::transaction(function () use ($shipment, $reason) {
+        return DB::transaction(function () use ($shipment, $reason) {
             $oldStatus = $shipment->status;
             $shipment = $oldStatus->transitionTo(Cancelled::class);
             if (! $shipment instanceof Shipment) {
