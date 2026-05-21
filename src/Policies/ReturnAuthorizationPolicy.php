@@ -29,11 +29,21 @@ class ReturnAuthorizationPolicy
 
     /**
      * Determine whether the user can view the return authorization.
+     *
+     * Allows either a permissioned admin (with owner boundary when enabled)
+     * or the tenant owner of the RMA (customer self-service).
      */
     public function view(Authenticatable $user, ReturnAuthorization $rma): bool
     {
-        return $this->hasPermission($user, 'shipping.returns.view')
-            || $this->isOwner($user, $rma);
+        if ($this->hasPermission($user, 'shipping.returns.view')) {
+            if ((bool) config('shipping.features.owner.enabled', false)) {
+                return $this->isOwner($user, $rma);
+            }
+
+            return true;
+        }
+
+        return $this->isOwner($user, $rma);
     }
 
     /**
@@ -46,6 +56,9 @@ class ReturnAuthorizationPolicy
 
     /**
      * Determine whether the user can update the return authorization.
+     *
+     * When owner mode is enabled, permission is necessary but not sufficient — the
+     * owner boundary must also pass to prevent cross-tenant IDOR.
      */
     public function update(Authenticatable $user, ReturnAuthorization $rma): bool
     {
@@ -53,11 +66,22 @@ class ReturnAuthorizationPolicy
             return false;
         }
 
-        return $this->hasPermission($user, 'shipping.returns.update');
+        if (! $this->hasPermission($user, 'shipping.returns.update')) {
+            return false;
+        }
+
+        if ((bool) config('shipping.features.owner.enabled', false)) {
+            return $this->isOwner($user, $rma);
+        }
+
+        return true;
     }
 
     /**
      * Determine whether the user can delete the return authorization.
+     *
+     * When owner mode is enabled, permission is necessary but not sufficient — the
+     * owner boundary must also pass to prevent cross-tenant IDOR.
      */
     public function delete(Authenticatable $user, ReturnAuthorization $rma): bool
     {
@@ -65,11 +89,22 @@ class ReturnAuthorizationPolicy
             return false;
         }
 
-        return $this->hasPermission($user, 'shipping.returns.delete');
+        if (! $this->hasPermission($user, 'shipping.returns.delete')) {
+            return false;
+        }
+
+        if ((bool) config('shipping.features.owner.enabled', false)) {
+            return $this->isOwner($user, $rma);
+        }
+
+        return true;
     }
 
     /**
      * Determine whether the user can approve the return authorization.
+     *
+     * When owner mode is enabled, permission is necessary but not sufficient — the
+     * owner boundary must also pass to prevent cross-tenant IDOR.
      */
     public function approve(Authenticatable $user, ReturnAuthorization $rma): bool
     {
@@ -77,11 +112,22 @@ class ReturnAuthorizationPolicy
             return false;
         }
 
-        return $this->hasPermission($user, 'shipping.returns.approve');
+        if (! $this->hasPermission($user, 'shipping.returns.approve')) {
+            return false;
+        }
+
+        if ((bool) config('shipping.features.owner.enabled', false)) {
+            return $this->isOwner($user, $rma);
+        }
+
+        return true;
     }
 
     /**
      * Determine whether the user can reject the return authorization.
+     *
+     * When owner mode is enabled, permission is necessary but not sufficient — the
+     * owner boundary must also pass to prevent cross-tenant IDOR.
      */
     public function reject(Authenticatable $user, ReturnAuthorization $rma): bool
     {
@@ -89,11 +135,22 @@ class ReturnAuthorizationPolicy
             return false;
         }
 
-        return $this->hasPermission($user, 'shipping.returns.reject');
+        if (! $this->hasPermission($user, 'shipping.returns.reject')) {
+            return false;
+        }
+
+        if ((bool) config('shipping.features.owner.enabled', false)) {
+            return $this->isOwner($user, $rma);
+        }
+
+        return true;
     }
 
     /**
      * Determine whether the user can receive items for the return.
+     *
+     * When owner mode is enabled, permission is necessary but not sufficient — the
+     * owner boundary must also pass to prevent cross-tenant IDOR.
      */
     public function receive(Authenticatable $user, ReturnAuthorization $rma): bool
     {
@@ -101,11 +158,22 @@ class ReturnAuthorizationPolicy
             return false;
         }
 
-        return $this->hasPermission($user, 'shipping.returns.receive');
+        if (! $this->hasPermission($user, 'shipping.returns.receive')) {
+            return false;
+        }
+
+        if ((bool) config('shipping.features.owner.enabled', false)) {
+            return $this->isOwner($user, $rma);
+        }
+
+        return true;
     }
 
     /**
      * Determine whether the user can complete the return process.
+     *
+     * When owner mode is enabled, permission is necessary but not sufficient — the
+     * owner boundary must also pass to prevent cross-tenant IDOR.
      */
     public function complete(Authenticatable $user, ReturnAuthorization $rma): bool
     {
@@ -113,7 +181,15 @@ class ReturnAuthorizationPolicy
             return false;
         }
 
-        return $this->hasPermission($user, 'shipping.returns.complete');
+        if (! $this->hasPermission($user, 'shipping.returns.complete')) {
+            return false;
+        }
+
+        if ((bool) config('shipping.features.owner.enabled', false)) {
+            return $this->isOwner($user, $rma);
+        }
+
+        return true;
     }
 
     /**

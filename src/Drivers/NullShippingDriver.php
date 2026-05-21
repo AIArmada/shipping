@@ -16,6 +16,7 @@ use AIArmada\Shipping\Data\TrackingData;
 use AIArmada\Shipping\Data\TrackingEventData;
 use AIArmada\Shipping\Enums\DriverCapability;
 use AIArmada\Shipping\Enums\TrackingStatus;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -119,7 +120,7 @@ class NullShippingDriver implements ShippingDriverInterface
                 new TrackingEventData(
                     code: 'TEST',
                     description: 'Test tracking event',
-                    timestamp: now(),
+                    timestamp: CarbonImmutable::now(),
                     normalizedStatus: TrackingStatus::InTransit,
                 ),
             ]),

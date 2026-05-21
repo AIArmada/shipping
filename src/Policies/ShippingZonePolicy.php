@@ -54,8 +54,13 @@ class ShippingZonePolicy
      */
     public function delete(Authenticatable $user, ShippingZone $zone): bool
     {
-        // Prevent deletion of zones with active rates
-        if ($zone->rates()->exists()) {
+        // Prevent deletion of zones with active rates.
+        // Use rates_count (from withCount) when available to avoid N+1 in table views.
+        $hasRates = isset($zone->rates_count)
+            ? $zone->rates_count > 0
+            : $zone->rates()->exists();
+
+        if ($hasRates) {
             return false;
         }
 

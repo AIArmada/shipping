@@ -16,6 +16,7 @@ use AIArmada\Shipping\Data\TrackingData;
 use AIArmada\Shipping\Data\TrackingEventData;
 use AIArmada\Shipping\Enums\DriverCapability;
 use AIArmada\Shipping\Enums\TrackingStatus;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
@@ -125,7 +126,7 @@ class ManualShippingDriver implements ShippingDriverInterface
                 new TrackingEventData(
                     code: 'MANUAL',
                     description: 'Manual shipment - tracking not available',
-                    timestamp: now(),
+                    timestamp: CarbonImmutable::now(),
                     normalizedStatus: TrackingStatus::AwaitingPickup,
                 ),
             ]),

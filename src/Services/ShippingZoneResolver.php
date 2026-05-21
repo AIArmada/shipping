@@ -8,7 +8,6 @@ use AIArmada\Shipping\Data\AddressData;
 use AIArmada\Shipping\Models\ShippingRate;
 use AIArmada\Shipping\Models\ShippingZone;
 use AIArmada\Shipping\Support\ShippingOwnerScope;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -168,24 +167,26 @@ class ShippingZoneResolver
             return $query;
         }
 
-        $owner = ShippingOwnerScope::resolveOwner();
+        // When explicit owner params are provided, use them directly (safe for non-HTTP contexts
+        // such as queued jobs and console commands where ambient context is unavailable).
+        if ($ownerId !== null && $ownerType !== null) {
+            return $query->where(function (Builder $q) use ($ownerId, $ownerType): void {
+                $q->where('owner_id', $ownerId)->where('owner_type', $ownerType);
 
-        if ($ownerId !== null || $ownerType !== null) {
-            if ($owner === null) {
-                throw new AuthorizationException('Cannot scope shipping zones to an owner without an owner context.');
-            }
-
-            if ($ownerId !== $owner->getKey() || $ownerType !== $owner->getMorphClass()) {
-                throw new AuthorizationException('Cannot scope shipping zones outside the current owner context.');
-            }
+                if (ShippingOwnerScope::includeGlobal()) {
+                    $q->orWhereNull('owner_id');
+                }
+            });
         }
 
+        // No explicit owner supplied — fall back to ambient context (HTTP requests via OwnerContext).
         return ShippingOwnerScope::applyToOwnedQuery($query);
     }
 
     private function buildCacheKey(AddressData $address, ?string $ownerId, ?string $ownerType): string
     {
-        if (ShippingOwnerScope::isEnabled()) {
+        // When owner mode is enabled and no explicit owner was passed, resolve from ambient context.
+        if (ShippingOwnerScope::isEnabled() && $ownerId === null && $ownerType === null) {
             $owner = ShippingOwnerScope::resolveOwner();
 
             $ownerId = $owner?->getKey();

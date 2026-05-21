@@ -7,12 +7,12 @@ namespace AIArmada\Shipping\Models;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Shipping\Data\AddressData;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Carbon;
 
 /**
  * @property string $id
@@ -28,8 +28,8 @@ use Illuminate\Support\Carbon;
  * @property int $priority
  * @property bool $is_default
  * @property bool $active
- * @property Carbon $created_at
- * @property Carbon $updated_at
+ * @property CarbonImmutable $created_at
+ * @property CarbonImmutable $updated_at
  * @property-read Collection<int, ShippingRate> $rates
  */
 class ShippingZone extends Model
@@ -73,6 +73,13 @@ class ShippingZone extends Model
     public function getTable(): string
     {
         return config('shipping.database.tables.shipping_zones', 'shipping_zones');
+    }
+
+    protected static function booted(): void
+    {
+        static::deleting(function (ShippingZone $zone): void {
+            $zone->rates()->delete();
+        });
     }
 
     // ─────────────────────────────────────────────────────────────

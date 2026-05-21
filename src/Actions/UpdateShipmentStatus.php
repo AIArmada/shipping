@@ -10,6 +10,7 @@ use AIArmada\Shipping\Models\Shipment;
 use AIArmada\Shipping\States\Delivered;
 use AIArmada\Shipping\States\ShipmentStatus as ShipmentStatusState;
 use AIArmada\Shipping\States\Shipped;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Lorisleiva\Actions\Concerns\AsAction;
 
@@ -48,22 +49,23 @@ final class UpdateShipmentStatus
 
             // Update timestamp fields based on status
             if ($shipment->status instanceof Shipped && $shipment->shipped_at === null) {
-                $shipment->shipped_at = now();
+                $shipment->shipped_at = CarbonImmutable::now();
             }
 
             if ($shipment->status instanceof Delivered && $shipment->delivered_at === null) {
-                $shipment->delivered_at = now();
+                $shipment->delivered_at = CarbonImmutable::now();
             }
 
             $shipment->save();
 
             // Create event record
             $shipment->events()->create([
+                'carrier_event_code' => 'internal:' . $nextStatus->getValue(),
                 'normalized_status' => $nextStatus->toTrackingStatus(),
                 'description' => $description,
                 'location' => $location,
                 'raw_data' => $metadata ?: null,
-                'occurred_at' => now(),
+                'occurred_at' => CarbonImmutable::now(),
             ]);
 
             return $shipment->refresh();

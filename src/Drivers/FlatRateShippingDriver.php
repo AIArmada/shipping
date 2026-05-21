@@ -16,6 +16,7 @@ use AIArmada\Shipping\Data\TrackingData;
 use AIArmada\Shipping\Data\TrackingEventData;
 use AIArmada\Shipping\Enums\DriverCapability;
 use AIArmada\Shipping\Enums\TrackingStatus;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
@@ -121,7 +122,7 @@ class FlatRateShippingDriver implements ShippingDriverInterface
                 new TrackingEventData(
                     code: 'FLAT',
                     description: 'Flat rate shipment - tracking not available',
-                    timestamp: now(),
+                    timestamp: CarbonImmutable::now(),
                     normalizedStatus: TrackingStatus::AwaitingPickup,
                 ),
             ]),

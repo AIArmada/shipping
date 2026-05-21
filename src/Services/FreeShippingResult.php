@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Services;
 
+use AIArmada\CommerceSupport\Support\MoneyFormatter;
+
 /**
  * Result of free shipping evaluation.
  */
@@ -13,6 +15,7 @@ class FreeShippingResult
         public readonly bool $applies,
         public readonly ?string $message = null,
         public readonly ?int $remainingAmount = null,
+        public readonly ?string $currency = null,
         public readonly bool $nearThreshold = false,
     ) {}
 
@@ -22,6 +25,6 @@ class FreeShippingResult
             return null;
         }
 
-        return number_format($this->remainingAmount / 100, 2);
+        return MoneyFormatter::formatMinor($this->remainingAmount, $this->currency ?? config('shipping.defaults.currency', 'MYR'));
     }
 }

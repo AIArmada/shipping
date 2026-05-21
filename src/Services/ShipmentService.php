@@ -27,6 +27,7 @@ use AIArmada\Shipping\States\Pending;
 use AIArmada\Shipping\States\ShipmentStatus as ShipmentStatusState;
 use AIArmada\Shipping\States\Shipped;
 use AIArmada\Shipping\Support\ShippingOwnerScope;
+use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -156,7 +157,7 @@ class ShipmentService
             $shipment->update([
                 'tracking_number' => $result->trackingNumber,
                 'carrier_reference' => $result->carrierReference,
-                'shipped_at' => now(),
+                'shipped_at' => CarbonImmutable::now(),
                 'label_url' => $result->labelUrl,
             ]);
 
@@ -221,7 +222,7 @@ class ShipmentService
         event(new ShipmentStatusChanged($shipment, $oldStatus, $shipment->status));
 
         if ($shipment->status->equals(Delivered::class)) {
-            $shipment->update(['delivered_at' => now()]);
+            $shipment->update(['delivered_at' => CarbonImmutable::now()]);
             event(new ShipmentDelivered($shipment));
         }
 
@@ -240,12 +241,6 @@ class ShipmentService
             throw new ShipmentNotCancellableException($shipment);
         }
 
-        // If already submitted to carrier, cancel there too
-        if ($shipment->tracking_number !== null) {
-            $driver = $this->shippingManager->driver($shipment->carrier_code);
-            $driver->cancelShipment($shipment->tracking_number);
-        }
-
         return DB::transaction(function () use ($shipment, $reason) {
             $oldStatus = $shipment->status;
             $shipment = $oldStatus->transitionTo(Cancelled::class);
@@ -256,6 +251,21 @@ class ShipmentService
             $this->recordEvent($shipment, 'cancelled', $reason);
             event(new ShipmentCancelled($shipment, $reason));
             event(new ShipmentStatusChanged($shipment, $oldStatus, $shipment->status));
+
+            // Notify carrier after the DB write succeeds so they stay in sync.
+            // Wrapped in try-catch: carrier failure is logged but must not roll back the DB state.
+            if ($shipment->tracking_number !== null) {
+                try {
+                    $driver = $this->shippingManager->driver($shipment->carrier_code);
+                    $driver->cancelShipment($shipment->tracking_number);
+                } catch (Throwable $e) {
+                    Log::warning('Carrier cancel failed after DB cancel — manual follow-up may be required', [
+                        'shipment_id' => $shipment->id,
+                        'tracking_number' => $shipment->tracking_number,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
 
             /** @var Shipment $shipment */
             $shipment = $shipment->refresh();
@@ -284,7 +294,7 @@ class ShipmentService
             'size' => $labelData->size,
             'url' => $labelData->url,
             'content' => $labelData->content,
-            'generated_at' => now(),
+            'generated_at' => CarbonImmutable::now(),
         ]);
 
         if ($labelData->url !== null) {
@@ -345,7 +355,7 @@ class ShipmentService
             'normalized_status' => $shipment->status->toTrackingStatus(),
             'description' => $note,
             'raw_data' => $data,
-            'occurred_at' => now(),
+            'occurred_at' => CarbonImmutable::now(),
         ]);
     }
 }

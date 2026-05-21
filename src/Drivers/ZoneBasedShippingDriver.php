@@ -19,6 +19,7 @@ use AIArmada\Shipping\Enums\DriverCapability;
 use AIArmada\Shipping\Enums\TrackingStatus;
 use AIArmada\Shipping\Models\ShippingRate;
 use AIArmada\Shipping\Services\ShippingZoneResolver;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
@@ -147,7 +148,7 @@ class ZoneBasedShippingDriver implements ShippingDriverInterface
                 new TrackingEventData(
                     code: 'ZONE',
                     description: 'Zone-based shipment - tracking not available',
-                    timestamp: now(),
+                    timestamp: CarbonImmutable::now(),
                     normalizedStatus: TrackingStatus::AwaitingPickup,
                 ),
             ]),

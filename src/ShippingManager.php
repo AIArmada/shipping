@@ -70,6 +70,12 @@ class ShippingManager
     {
         $driver ??= $this->getDefaultDriver();
 
+        // The zone driver injects ShippingZoneResolver which is scoped (Octane-safe).
+        // Do not cache it in the singleton driver map so each request gets a fresh resolver.
+        if ($driver === 'zone') {
+            return $this->createDriver($driver);
+        }
+
         if (! isset($this->drivers[$driver])) {
             $this->drivers[$driver] = $this->createDriver($driver);
         }
@@ -82,7 +88,7 @@ class ShippingManager
      */
     public function getDefaultDriver(): string
     {
-        return $this->container->get('config')->get('shipping.default', 'manual');
+        return $this->container->get('config')->get('shipping.drivers.default', 'manual');
     }
 
     /**
@@ -90,7 +96,7 @@ class ShippingManager
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->container->get('config')->set('shipping.default', $name);
+        $this->container->get('config')->set('shipping.drivers.default', $name);
     }
 
     /**

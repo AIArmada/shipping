@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Services;
 
+use AIArmada\CommerceSupport\Support\MoneyFormatter;
 use InvalidArgumentException;
 
 /**
@@ -47,6 +48,7 @@ class FreeShippingEvaluator
             return new FreeShippingResult(
                 applies: true,
                 message: 'Free shipping applied!',
+                currency: $this->config['currency'] ?? 'MYR',
             );
         }
 
@@ -57,6 +59,7 @@ class FreeShippingEvaluator
             applies: false,
             nearThreshold: true,
             remainingAmount: $remaining,
+            currency: $this->config['currency'] ?? 'MYR',
             message: $this->formatRemainingMessage($remaining),
         );
     }
@@ -112,9 +115,9 @@ class FreeShippingEvaluator
      */
     protected function formatRemainingMessage(int $remaining): string
     {
-        $formatted = number_format($remaining / 100, 2);
-        $currency = $this->config['currency'] ?? 'RM';
+        $currency = $this->config['currency'] ?? 'MYR';
+        $formatted = MoneyFormatter::formatMinor($remaining, $currency);
 
-        return "Add {$currency}{$formatted} more for free shipping!";
+        return "Add {$formatted} more for free shipping!";
     }
 }

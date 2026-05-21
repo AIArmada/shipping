@@ -12,7 +12,7 @@ return new class extends Migration
     {
         $tableName = config('shipping.database.tables.shipment_items', 'shipment_items');
         $shipmentsTable = config('shipping.database.tables.shipments', 'shipments');
-        $jsonType = (string) config('shipping.database.json_column_type', 'json');
+        $jsonType = (string) config('shipping.database.json_column_type', commerce_json_column_type('shipping', 'json'));
 
         Schema::create($tableName, function (Blueprint $table) use ($tableName, $jsonType): void {
             $table->uuid('id')->primary();

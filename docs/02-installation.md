@@ -87,6 +87,28 @@ If using with the orders package, the shipping package will automatically regist
 composer require aiarmada/orders
 ```
 
+## Multi-Tenant Setup
+
+import Aside from "@components/Aside.astro"
+
+<Aside variant="warning">
+  Owner scoping is **disabled by default** (`SHIPPING_OWNER_ENABLED=false`). In a multi-tenant deployment every tenant will see all shipments, zones, and returns unless you enable it. Set `SHIPPING_OWNER_ENABLED=true` and bind `OwnerResolverInterface` before going live.
+</Aside>
+
+```env
+SHIPPING_OWNER_ENABLED=true
+```
+
+Bind the resolver in `AppServiceProvider::register()`:
+
+```php
+use AIArmada\CommerceSupport\Contracts\OwnerResolverInterface;
+
+$this->app->bind(OwnerResolverInterface::class, CurrentTenantResolver::class);
+```
+
+See [Multitenancy](./06-multitenancy.md) for full details.
+
 ## Verification
 
 Test the installation by accessing the shipping manager:

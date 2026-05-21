@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Data;
 
+use AIArmada\CommerceSupport\Support\MoneyFormatter;
 use DateTimeInterface;
 use Spatie\LaravelData\Data;
 
@@ -65,7 +66,7 @@ class RateQuoteData extends Data
 
     public function getFormattedRate(): string
     {
-        return number_format($this->rate / 100, 2) . ' ' . $this->currency;
+        return MoneyFormatter::formatMinorWithCode($this->rate, $this->currency);
     }
 
     public function getDeliveryEstimate(): string

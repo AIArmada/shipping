@@ -6,11 +6,11 @@ namespace AIArmada\Shipping\Models;
 
 use AIArmada\CommerceSupport\Traits\FormatsMoney;
 use AIArmada\Shipping\Data\PackageData;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Carbon;
 
 /**
  * @property string $id
@@ -30,8 +30,8 @@ use Illuminate\Support\Carbon;
  * @property int|null $estimated_days_max
  * @property array|null $conditions
  * @property bool $active
- * @property Carbon $created_at
- * @property Carbon $updated_at
+ * @property CarbonImmutable $created_at
+ * @property CarbonImmutable $updated_at
  * @property-read ShippingZone $zone
  * @property-read string $formatted_base_rate
  */

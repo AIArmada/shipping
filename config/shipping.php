@@ -56,19 +56,19 @@ return [
     'features' => [
         'owner' => [
             'enabled' => env('SHIPPING_OWNER_ENABLED', false),
-            'include_global' => false,
+            'include_global' => env('SHIPPING_OWNER_INCLUDE_GLOBAL', false),
+            'auto_assign_on_create' => env('SHIPPING_OWNER_AUTO_ASSIGN_ON_CREATE', true),
         ],
     ],
 
     /*
     |--------------------------------------------------------------------------
     | Drivers
-    */
-    'default' => env('SHIPPING_DRIVER', 'manual'),
-
-    /*
     |--------------------------------------------------------------------------
+    */
     'drivers' => [
+        'default' => env('SHIPPING_DRIVER', 'manual'),
+
         'manual' => [
             'driver' => 'manual',
             'name' => 'Manual Shipping',
@@ -138,10 +138,12 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | API Settings
+    | HTTP
     |--------------------------------------------------------------------------
     */
-    'api_timeout' => env('SHIPPING_API_TIMEOUT', 30),
-    'api_retries' => env('SHIPPING_API_RETRIES', 3),
-    'api_base_delay_ms' => env('SHIPPING_API_BASE_DELAY_MS', 100),
+    'http' => [
+        'timeout' => env('SHIPPING_API_TIMEOUT', 30),
+        'retries' => env('SHIPPING_API_RETRIES', 3),
+        'base_delay_ms' => env('SHIPPING_API_BASE_DELAY_MS', 100),
+    ],
 ];

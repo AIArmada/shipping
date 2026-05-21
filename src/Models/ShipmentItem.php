@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Illuminate\Support\Carbon;
 
 /**
  * @property string $id
@@ -22,8 +22,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $hs_code
  * @property string|null $origin_country
  * @property array|null $metadata
- * @property Carbon $created_at
- * @property Carbon $updated_at
+ * @property CarbonImmutable $created_at
+ * @property CarbonImmutable $updated_at
  * @property-read Shipment $shipment
  */
 class ShipmentItem extends Model

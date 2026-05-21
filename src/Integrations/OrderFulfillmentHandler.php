@@ -77,7 +77,7 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
 
             $data = ShipmentData::from([
                 'reference' => $order->order_number,
-                'carrierCode' => $shipmentData['carrier'] ?? config('shipping.default', 'manual'),
+                'carrierCode' => $shipmentData['carrier'] ?? config('shipping.drivers.default', 'manual'),
                 'serviceCode' => $shipmentData['service'] ?? 'standard',
                 'origin' => $originAddress,
                 'destination' => $destinationAddress,

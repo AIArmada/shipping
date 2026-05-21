@@ -8,6 +8,7 @@ use AIArmada\Cart\Conditions\CartCondition;
 use AIArmada\Cart\Conditions\Enums\ConditionApplication;
 use AIArmada\Cart\Conditions\Enums\ConditionPhase;
 use AIArmada\Cart\Conditions\Enums\ConditionScope;
+use AIArmada\CommerceSupport\Support\MoneyFormatter;
 
 /**
  * Shipping condition applied to the cart.
@@ -69,7 +70,7 @@ class ShippingCondition
         $value = $this->condition->getValue();
         $currency = $this->condition->getAttribute('currency') ?? 'MYR';
 
-        return number_format($value / 100, 2) . ' ' . $currency;
+        return MoneyFormatter::formatMinorWithCode((int) $value, (string) $currency);
     }
 
     public function asCartCondition(): CartCondition

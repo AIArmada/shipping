@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace AIArmada\Shipping\Models;
 
 use AIArmada\Shipping\Enums\TrackingStatus;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Carbon;
 
 /**
  * @property string $id
@@ -21,10 +21,10 @@ use Illuminate\Support\Carbon;
  * @property string|null $state
  * @property string|null $country
  * @property string|null $postcode
- * @property Carbon $occurred_at
+ * @property CarbonImmutable $occurred_at
  * @property array|null $raw_data
- * @property Carbon $created_at
- * @property Carbon $updated_at
+ * @property CarbonImmutable $created_at
+ * @property CarbonImmutable $updated_at
  * @property-read Shipment $shipment
  */
 class ShipmentEvent extends Model

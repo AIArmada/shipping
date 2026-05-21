@@ -29,8 +29,8 @@ final class RetryService
      */
     public function __construct()
     {
-        $this->maxAttempts = (int) config('shipping.api_retries', 3);
-        $this->baseDelayMs = (int) config('shipping.api_base_delay_ms', 100);
+        $this->maxAttempts = (int) config('shipping.http.retries', 3);
+        $this->baseDelayMs = (int) config('shipping.http.base_delay_ms', 100);
     }
 
     /**

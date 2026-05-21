@@ -29,11 +29,22 @@ class ShipmentPolicy
 
     /**
      * Determine whether the user can view the shipment.
+     *
+     * Allows either a permissioned admin (with owner boundary when enabled) or
+     * the tenant owner of the shipment (customer self-service without admin permission).
      */
     public function view(Authenticatable $user, Shipment $shipment): bool
     {
-        return $this->hasPermission($user, 'shipping.shipments.view')
-            || $this->isOwner($user, $shipment);
+        if ($this->hasPermission($user, 'shipping.shipments.view')) {
+            if ((bool) config('shipping.features.owner.enabled', false)) {
+                return $this->isOwner($user, $shipment);
+            }
+
+            return true;
+        }
+
+        // Customer self-service fallback: owner can view their own shipment.
+        return $this->isOwner($user, $shipment);
     }
 
     /**
@@ -46,6 +57,9 @@ class ShipmentPolicy
 
     /**
      * Determine whether the user can update the shipment.
+     *
+     * When owner mode is enabled, permission is necessary but not sufficient — the
+     * owner boundary must also pass to prevent cross-tenant IDOR.
      */
     public function update(Authenticatable $user, Shipment $shipment): bool
     {
@@ -53,12 +67,22 @@ class ShipmentPolicy
             return false;
         }
 
-        return $this->hasPermission($user, 'shipping.shipments.update')
-            || $this->isOwner($user, $shipment);
+        if (! $this->hasPermission($user, 'shipping.shipments.update')) {
+            return false;
+        }
+
+        if ((bool) config('shipping.features.owner.enabled', false)) {
+            return $this->isOwner($user, $shipment);
+        }
+
+        return true;
     }
 
     /**
      * Determine whether the user can delete the shipment.
+     *
+     * When owner mode is enabled, permission is necessary but not sufficient — the
+     * owner boundary must also pass to prevent cross-tenant IDOR.
      */
     public function delete(Authenticatable $user, Shipment $shipment): bool
     {
@@ -66,11 +90,22 @@ class ShipmentPolicy
             return false;
         }
 
-        return $this->hasPermission($user, 'shipping.shipments.delete');
+        if (! $this->hasPermission($user, 'shipping.shipments.delete')) {
+            return false;
+        }
+
+        if ((bool) config('shipping.features.owner.enabled', false)) {
+            return $this->isOwner($user, $shipment);
+        }
+
+        return true;
     }
 
     /**
      * Determine whether the user can ship the shipment.
+     *
+     * When owner mode is enabled, permission is necessary but not sufficient — the
+     * owner boundary must also pass to prevent cross-tenant IDOR.
      */
     public function ship(Authenticatable $user, Shipment $shipment): bool
     {
@@ -78,11 +113,22 @@ class ShipmentPolicy
             return false;
         }
 
-        return $this->hasPermission($user, 'shipping.shipments.ship');
+        if (! $this->hasPermission($user, 'shipping.shipments.ship')) {
+            return false;
+        }
+
+        if ((bool) config('shipping.features.owner.enabled', false)) {
+            return $this->isOwner($user, $shipment);
+        }
+
+        return true;
     }
 
     /**
      * Determine whether the user can cancel the shipment.
+     *
+     * When owner mode is enabled, permission is necessary but not sufficient — the
+     * owner boundary must also pass to prevent cross-tenant IDOR.
      */
     public function cancel(Authenticatable $user, Shipment $shipment): bool
     {
@@ -90,11 +136,22 @@ class ShipmentPolicy
             return false;
         }
 
-        return $this->hasPermission($user, 'shipping.shipments.cancel');
+        if (! $this->hasPermission($user, 'shipping.shipments.cancel')) {
+            return false;
+        }
+
+        if ((bool) config('shipping.features.owner.enabled', false)) {
+            return $this->isOwner($user, $shipment);
+        }
+
+        return true;
     }
 
     /**
      * Determine whether the user can print labels.
+     *
+     * When owner mode is enabled, permission is necessary but not sufficient — the
+     * owner boundary must also pass to prevent cross-tenant IDOR.
      */
     public function printLabel(Authenticatable $user, Shipment $shipment): bool
     {
@@ -102,12 +159,22 @@ class ShipmentPolicy
             return false;
         }
 
-        return $this->hasPermission($user, 'shipping.shipments.print-label')
-            || $this->isOwner($user, $shipment);
+        if (! $this->hasPermission($user, 'shipping.shipments.print-label')) {
+            return false;
+        }
+
+        if ((bool) config('shipping.features.owner.enabled', false)) {
+            return $this->isOwner($user, $shipment);
+        }
+
+        return true;
     }
 
     /**
      * Determine whether the user can sync tracking.
+     *
+     * When owner mode is enabled, permission is necessary but not sufficient — the
+     * owner boundary must also pass to prevent cross-tenant IDOR.
      */
     public function syncTracking(Authenticatable $user, Shipment $shipment): bool
     {
@@ -115,7 +182,15 @@ class ShipmentPolicy
             return false;
         }
 
-        return $this->hasPermission($user, 'shipping.shipments.sync-tracking');
+        if (! $this->hasPermission($user, 'shipping.shipments.sync-tracking')) {
+            return false;
+        }
+
+        if ((bool) config('shipping.features.owner.enabled', false)) {
+            return $this->isOwner($user, $shipment);
+        }
+
+        return true;
     }
 
     /**

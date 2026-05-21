@@ -7,14 +7,14 @@ namespace AIArmada\Shipping\Models;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Shipping\Enums\ReturnReason;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Support\Carbon;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Support\Str;
 
 /**
@@ -28,13 +28,15 @@ use Illuminate\Support\Str;
  * @property string $reason
  * @property string|null $reason_details
  * @property string|null $approved_by
- * @property Carbon|null $approved_at
- * @property Carbon|null $received_at
- * @property Carbon|null $completed_at
- * @property Carbon|null $expires_at
+ * @property CarbonImmutable|null $approved_at
+ * @property string|null $rejected_by
+ * @property CarbonImmutable|null $rejected_at
+ * @property CarbonImmutable|null $received_at
+ * @property CarbonImmutable|null $completed_at
+ * @property CarbonImmutable|null $expires_at
  * @property array|null $metadata
- * @property Carbon $created_at
- * @property Carbon $updated_at
+ * @property CarbonImmutable $created_at
+ * @property CarbonImmutable $updated_at
  * @property-read Shipment|null $originalShipment
  * @property-read Shipment|null $returnShipment
  * @property-read Collection<int, ReturnAuthorizationItem> $items
@@ -64,6 +66,8 @@ class ReturnAuthorization extends Model
         'reason_details',
         'approved_by',
         'approved_at',
+        'rejected_by',
+        'rejected_at',
         'received_at',
         'completed_at',
         'expires_at',
@@ -100,12 +104,11 @@ class ReturnAuthorization extends Model
     }
 
     /**
-     * @return HasOne<Shipment, ReturnAuthorization>
+     * @return MorphOne<Shipment, ReturnAuthorization>
      */
-    public function returnShipment(): HasOne
+    public function returnShipment(): MorphOne
     {
-        return $this->hasOne(Shipment::class, 'shippable_id')
-            ->where('shippable_type', static::class);
+        return $this->morphOne(Shipment::class, 'shippable');
     }
 
     /**
@@ -195,6 +198,7 @@ class ReturnAuthorization extends Model
         });
 
         static::deleting(function (ReturnAuthorization $rma): void {
+            $rma->returnShipment?->delete();
             $rma->items()->delete();
         });
     }
@@ -203,6 +207,7 @@ class ReturnAuthorization extends Model
     {
         return [
             'approved_at' => 'datetime',
+            'rejected_at' => 'datetime',
             'received_at' => 'datetime',
             'completed_at' => 'datetime',
             'expires_at' => 'datetime',

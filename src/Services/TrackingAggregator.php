@@ -23,6 +23,8 @@ use AIArmada\Shipping\States\OutForDelivery;
 use AIArmada\Shipping\States\ReturnToSender;
 use AIArmada\Shipping\States\ShipmentStatus as ShipmentStatusState;
 use AIArmada\Shipping\Support\ShippingOwnerScope;
+use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Throwable;
 
@@ -77,7 +79,7 @@ class TrackingAggregator
 
         $newEvents = $this->processTrackingEvents($shipment, $trackingData->events);
 
-        $shipment->update(['last_tracking_sync' => now()]);
+        $shipment->update(['last_tracking_sync' => CarbonImmutable::now()]);
 
         if ($newEvents->isNotEmpty()) {
             $this->updateShipmentStatus($shipment);
@@ -91,7 +93,7 @@ class TrackingAggregator
      * Sync tracking for multiple shipments.
      *
      * @param  Collection<int, Shipment>  $shipments
-     * @return Collection<int, array{id: int, success: bool, error?: string}>
+     * @return Collection<int, array{id: string, success: bool, error?: string}>
      */
     public function syncBatch(Collection $shipments): Collection
     {
@@ -113,24 +115,33 @@ class TrackingAggregator
     /**
      * Get shipments that need tracking updates.
      *
+     * In non-request contexts (commands/jobs), pass $owner explicitly per tenant.
+     * When $owner is null and owner mode is enabled, only global shipments are returned.
+     *
      * @return Collection<int, Shipment>
      */
-    public function getShipmentsNeedingUpdate(int $limit = 100): Collection
+    public function getShipmentsNeedingUpdate(int $limit = 100, ?Model $owner = null): Collection
     {
         $maxAge = config('shipping.tracking.max_tracking_age', 30);
         $syncInterval = config('shipping.tracking.sync_interval', 3600);
 
-        return ShippingOwnerScope::applyToOwnedQuery(Shipment::query())
+        $query = Shipment::query();
+
+        if (ShippingOwnerScope::isEnabled()) {
+            $query->forOwner($owner, includeGlobal: $owner === null);
+        }
+
+        return $query
             ->whereNotNull('tracking_number')
             ->whereNotIn('status', [
                 ShipmentStatusState::normalize(Delivered::class),
                 ShipmentStatusState::normalize(Cancelled::class),
                 ShipmentStatusState::normalize(ReturnToSender::class),
             ])
-            ->where('created_at', '>', now()->subDays($maxAge))
+            ->where('created_at', '>', CarbonImmutable::now()->subDays($maxAge))
             ->where(function ($query) use ($syncInterval): void {
                 $query->whereNull('last_tracking_sync')
-                    ->orWhere('last_tracking_sync', '<', now()->subSeconds($syncInterval));
+                    ->orWhere('last_tracking_sync', '<', CarbonImmutable::now()->subSeconds($syncInterval));
             })
             ->limit($limit)
             ->get();
