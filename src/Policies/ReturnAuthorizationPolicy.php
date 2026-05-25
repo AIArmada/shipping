@@ -7,6 +7,7 @@ namespace AIArmada\Shipping\Policies;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Shipping\Models\ReturnAuthorization;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Contracts\Auth\Access\Authorizable;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 
@@ -201,7 +202,7 @@ class ReturnAuthorizationPolicy
             return $user->hasPermissionTo($permission);
         }
 
-        if (method_exists($user, 'can')) {
+        if ($user instanceof Authorizable) {
             return $user->can($permission);
         }
 

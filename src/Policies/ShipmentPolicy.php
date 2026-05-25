@@ -7,6 +7,7 @@ namespace AIArmada\Shipping\Policies;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Shipping\Models\Shipment;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Contracts\Auth\Access\Authorizable;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 
@@ -204,7 +205,7 @@ class ShipmentPolicy
         }
 
         // Check for can method
-        if (method_exists($user, 'can')) {
+        if ($user instanceof Authorizable) {
             return $user->can($permission);
         }
 

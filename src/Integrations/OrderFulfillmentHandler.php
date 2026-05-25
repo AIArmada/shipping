@@ -316,7 +316,10 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
             $availability = $fulfillmentService->getAvailabilitySummary($items);
 
             foreach ($availability as $item) {
-                $locationStock = collect($item['locations'] ?? [])
+                $locations = is_array($item['locations'] ?? null) ? $item['locations'] : [];
+
+                /** @var list<array<string, mixed>> $locations */
+                $locationStock = collect($locations)
                     ->firstWhere('location_id', $location->id);
 
                 if ($locationStock === null || ($locationStock['available'] ?? 0) < $item['quantity_needed']) {

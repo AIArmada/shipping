@@ -61,15 +61,11 @@ final class CreateShipment
                 $status = $status->getValue();
             }
 
-            if (! is_string($status)) {
-                $status = Draft::class;
-            }
-
             $status = ShipmentStatusState::normalize($status);
 
             $statusClass = ShipmentStatusState::resolveStateClass($status) ?? Draft::class;
 
-            if (! is_string($statusClass) || ! is_subclass_of($statusClass, ShipmentStatusState::class)) {
+            if (! is_subclass_of($statusClass, ShipmentStatusState::class)) {
                 $statusClass = Draft::class;
             }
 

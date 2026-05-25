@@ -229,6 +229,6 @@ Event::listen(ShipmentStatusChanged::class, function ($event) {
 
 ## Getting Help
 
-1. Check the [vision documents](vision/) for architectural details
+1. Review the current package docs in this folder, especially configuration and usage
 2. Review test files in `tests/src/Shipping/` for usage examples
 3. Open an issue on the [GitHub repository](https://github.com/aiarmada/commerce/issues)

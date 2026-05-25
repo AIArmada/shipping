@@ -6,6 +6,7 @@ namespace AIArmada\Shipping\Policies;
 
 use AIArmada\Shipping\Models\ShippingZone;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Contracts\Auth\Access\Authorizable;
 use Illuminate\Contracts\Auth\Authenticatable;
 
 /**
@@ -84,7 +85,7 @@ class ShippingZonePolicy
             return $user->hasPermissionTo($permission);
         }
 
-        if (method_exists($user, 'can')) {
+        if ($user instanceof Authorizable) {
             return $user->can($permission);
         }
 

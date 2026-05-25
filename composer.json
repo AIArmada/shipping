@@ -8,7 +8,8 @@
         "source": "https://github.com/aiarmada/commerce"
     },
     "require": {
-        "aiarmada/commerce-support": "self.version"
+        "aiarmada/commerce-support": "self.version",
+        "php": "^8.4"
     },
     "suggest": {
         "aiarmada/cart": "Required for free shipping evaluation with cart subtotals",
