@@ -344,23 +344,28 @@ $result = $evaluator->evaluate($cart);
 ### Creating an RMA
 
 ```php
+use AIArmada\Shipping\Actions\ApproveReturnAuthorization;
 use AIArmada\Shipping\Models\ReturnAuthorization;
 use AIArmada\Shipping\Enums\ReturnReason;
 
 $rma = ReturnAuthorization::create([
-    'shipment_id' => $shipment->id,
-    'customer_name' => 'John Doe',
-    'customer_email' => 'john@example.com',
-    'reason' => ReturnReason::Defective,
-    'notes' => 'Product arrived damaged',
-    'status' => 'pending',
+    'owner_type' => $store::class,
+    'owner_id' => $store->getKey(),
+    'original_shipment_id' => $shipment->id,
+    'customer_id' => $customer->getKey(),
+    'type' => 'refund',
+    'reason' => ReturnReason::Defective->value,
+    'reason_details' => 'Product arrived damaged',
 ]);
 
 // Add items to return
 $rma->items()->create([
-    'shipment_item_id' => $shipmentItem->id,
-    'quantity' => 1,
-    'reason' => ReturnReason::Defective,
+    'original_item_type' => $shipmentItem::class,
+    'original_item_id' => $shipmentItem->getKey(),
+    'sku' => $shipmentItem->sku,
+    'name' => $shipmentItem->name,
+    'quantity_requested' => 1,
+    'reason' => ReturnReason::Defective->value,
 ]);
 ```
 
@@ -368,15 +373,16 @@ $rma->items()->create([
 
 ```php
 // Approve return
-$rma->update([
-    'status' => 'approved',
-    'approved_at' => now(),
-    'approved_by' => auth()->id(),
-]);
+$rma = app(ApproveReturnAuthorization::class)->handle(
+    $rma,
+    notes: 'Visible shipping damage confirmed',
+    actorId: (string) auth()->id(),
+);
 
-// Generate return label
-$label = Shipping::driver($rma->carrier_code)->generateReturnLabel($rma);
-$rma->update(['return_tracking_number' => $label->trackingNumber]);
+// Record the approved quantity for each line item
+$rma->items()->first()?->update([
+    'quantity_approved' => 1,
+]);
 
 // Mark as received
 $rma->update([
@@ -384,10 +390,14 @@ $rma->update([
     'received_at' => now(),
 ]);
 
-// Complete refund
+// Record received quantities and complete the return
+$rma->items()->first()?->update([
+    'quantity_received' => 1,
+]);
+
 $rma->update([
-    'status' => 'refunded',
-    'refunded_at' => now(),
+    'status' => 'completed',
+    'completed_at' => now(),
 ]);
 ```
 
