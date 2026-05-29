@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Models;
 
+use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\Shipping\Enums\TrackingStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -30,6 +31,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ShipmentEvent extends Model
 {
     use HasUuids;
+    use LogsCommerceActivity;
 
     public $incrementing = false;
 
@@ -88,5 +90,29 @@ class ShipmentEvent extends Model
             'occurred_at' => 'datetime',
             'raw_data' => 'array',
         ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function getLoggableAttributes(): array
+    {
+        return [
+            'shipment_id',
+            'carrier_event_code',
+            'normalized_status',
+            'description',
+            'location',
+            'city',
+            'state',
+            'country',
+            'postcode',
+            'occurred_at',
+        ];
+    }
+
+    protected function getActivityLogName(): string
+    {
+        return 'shipping';
     }
 }

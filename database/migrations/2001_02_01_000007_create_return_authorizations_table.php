@@ -30,7 +30,9 @@ return new class extends Migration
             $table->text('reason_details')->nullable();
 
             $table->foreignUuid('approved_by')->nullable();
+            $table->foreignUuid('rejected_by')->nullable();
             $table->timestamp('approved_at')->nullable();
+            $table->timestamp('rejected_at')->nullable();
             $table->timestamp('received_at')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->timestamp('expires_at')->nullable();
@@ -60,6 +62,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index('return_authorization_id', $itemsTable . '_ra_id');
+            $table->unique(['return_authorization_id', 'sku'], $itemsTable . '_rma_sku_unique');
         });
     }
 

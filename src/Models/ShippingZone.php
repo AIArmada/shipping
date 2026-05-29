@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Models;
 
+use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
+use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Shipping\Data\AddressData;
@@ -13,6 +15,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * @property string $id
@@ -32,11 +35,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property CarbonImmutable $updated_at
  * @property-read Collection<int, ShippingRate> $rates
  */
-class ShippingZone extends Model
+class ShippingZone extends Model implements Auditable
 {
+    use HasCommerceAudit;
     use HasOwner;
     use HasOwnerScopeConfig;
     use HasUuids;
+    use LogsCommerceActivity;
 
     protected static string $ownerScopeConfigKey = 'shipping.features.owner';
 
@@ -60,6 +65,26 @@ class ShippingZone extends Model
         'is_default',
         'active',
     ];
+
+    public function getAuditInclude(): array
+    {
+        return [
+            'owner_id',
+            'owner_type',
+            'name',
+            'code',
+            'type',
+            'countries',
+            'states',
+            'postcode_ranges',
+            'center_lat',
+            'center_lng',
+            'radius_km',
+            'priority',
+            'is_default',
+            'active',
+        ];
+    }
 
     /**
      * @var array<string, mixed>
@@ -241,5 +266,10 @@ class ShippingZone extends Model
         $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
 
         return $earthRadius * $c;
+    }
+
+    protected function getActivityLogName(): string
+    {
+        return 'shipping';
     }
 }

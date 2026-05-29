@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Models;
 
+use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
+use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\FormatsMoney;
 use AIArmada\Shipping\Data\PackageData;
 use Carbon\CarbonImmutable;
@@ -11,6 +13,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * @property string $id
@@ -35,10 +38,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read ShippingZone $zone
  * @property-read string $formatted_base_rate
  */
-class ShippingRate extends Model
+class ShippingRate extends Model implements Auditable
 {
     use FormatsMoney;
+    use HasCommerceAudit;
     use HasUuids;
+    use LogsCommerceActivity;
 
     public $incrementing = false;
 
@@ -62,6 +67,28 @@ class ShippingRate extends Model
         'conditions',
         'active',
     ];
+
+    public function getAuditInclude(): array
+    {
+        return [
+            'zone_id',
+            'carrier_code',
+            'method_code',
+            'name',
+            'description',
+            'calculation_type',
+            'base_rate',
+            'per_unit_rate',
+            'min_charge',
+            'max_charge',
+            'free_shipping_threshold',
+            'rate_table',
+            'estimated_days_min',
+            'estimated_days_max',
+            'conditions',
+            'active',
+        ];
+    }
 
     /**
      * @var array<string, mixed>
@@ -265,5 +292,10 @@ class ShippingRate extends Model
 
         // Return last tier rate for weights exceeding all tiers
         return $this->rate_table[count($this->rate_table) - 1]['rate'] ?? $this->base_rate;
+    }
+
+    protected function getActivityLogName(): string
+    {
+        return 'shipping';
     }
 }
