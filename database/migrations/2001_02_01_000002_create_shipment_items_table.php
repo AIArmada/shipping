@@ -31,7 +31,7 @@ return new class extends Migration
             $table->string('origin_country', 3)->nullable();
 
             $table->{$jsonType}('metadata')->nullable();
-            $table->timestamps();
+            $table->timestampsTz();
 
             $table->index(['shipment_id', 'sku'], $tableName . '_shipment_sku');
         });

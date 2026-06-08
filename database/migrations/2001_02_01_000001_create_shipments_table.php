@@ -43,14 +43,14 @@ return new class extends Migration
             $table->string('label_url')->nullable();
             $table->string('label_format', 10)->nullable();
 
-            $table->timestamp('shipped_at')->nullable();
-            $table->timestamp('estimated_delivery_at')->nullable();
-            $table->timestamp('delivered_at')->nullable();
-            $table->timestamp('last_tracking_sync')->nullable();
+            $table->timestampTz('shipped_at')->nullable();
+            $table->timestampTz('estimated_delivery_at')->nullable();
+            $table->timestampTz('delivered_at')->nullable();
+            $table->timestampTz('last_tracking_sync')->nullable();
 
             $table->{$jsonType}('metadata')->nullable();
 
-            $table->timestamps();
+            $table->timestampsTz();
 
             $table->index(['owner_id', 'owner_type', 'status'], $tableName . '_owner_status');
             $table->index(['carrier_code', 'status', 'created_at'], $tableName . '_carrier_status');

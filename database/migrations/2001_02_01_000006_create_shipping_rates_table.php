@@ -37,7 +37,7 @@ return new class extends Migration
             $table->{$jsonType}('conditions')->nullable();
             $table->boolean('active')->default(true);
 
-            $table->timestamps();
+            $table->timestampsTz();
 
             $table->index(['zone_id', 'carrier_code', 'active'], $tableName . '_zone_carrier_active');
             $table->index('method_code', $tableName . '_method_code');

@@ -31,14 +31,14 @@ return new class extends Migration
 
             $table->foreignUuid('approved_by')->nullable();
             $table->foreignUuid('rejected_by')->nullable();
-            $table->timestamp('approved_at')->nullable();
-            $table->timestamp('rejected_at')->nullable();
-            $table->timestamp('received_at')->nullable();
-            $table->timestamp('completed_at')->nullable();
-            $table->timestamp('expires_at')->nullable();
+            $table->timestampTz('approved_at')->nullable();
+            $table->timestampTz('rejected_at')->nullable();
+            $table->timestampTz('received_at')->nullable();
+            $table->timestampTz('completed_at')->nullable();
+            $table->timestampTz('expires_at')->nullable();
 
             $table->{$jsonType}('metadata')->nullable();
-            $table->timestamps();
+            $table->timestampsTz();
 
             $table->index(['owner_id', 'owner_type', 'status'], $tableName . '_owner_status');
         });
@@ -59,7 +59,7 @@ return new class extends Migration
             $table->string('condition', 50)->nullable();
 
             $table->{$jsonType}('metadata')->nullable();
-            $table->timestamps();
+            $table->timestampsTz();
 
             $table->index('return_authorization_id', $itemsTable . '_ra_id');
             $table->unique(['return_authorization_id', 'sku'], $itemsTable . '_rma_sku_unique');

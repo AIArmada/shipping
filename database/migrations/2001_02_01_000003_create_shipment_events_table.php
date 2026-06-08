@@ -27,10 +27,10 @@ return new class extends Migration
             $table->string('country', 2)->nullable();
             $table->string('postcode', 20)->nullable();
 
-            $table->timestamp('occurred_at')->index();
+            $table->timestampTz('occurred_at')->index();
             $table->{$jsonType}('raw_data')->nullable();
 
-            $table->timestamps();
+            $table->timestampsTz();
 
             $table->unique(
                 ['shipment_id', 'carrier_event_code', 'occurred_at'],

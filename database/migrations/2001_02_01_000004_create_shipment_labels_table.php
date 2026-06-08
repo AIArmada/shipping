@@ -21,8 +21,8 @@ return new class extends Migration
             $table->string('url')->nullable();
             $table->longText('content')->nullable();
 
-            $table->timestamp('generated_at');
-            $table->timestamps();
+            $table->timestampTz('generated_at');
+            $table->timestampsTz();
 
             $table->index(['shipment_id', 'format'], $tableName . '_shipment_format');
         });
