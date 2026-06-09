@@ -18,6 +18,10 @@ use AIArmada\Shipping\Services\FreeShippingEvaluator;
 use AIArmada\Shipping\Services\RateShoppingEngine;
 use AIArmada\Shipping\Services\ShipmentService;
 use AIArmada\Shipping\Services\ShippingZoneResolver;
+use AIArmada\Shipping\Strategies\GeoZoneResolutionStrategy;
+use AIArmada\Shipping\Strategies\ThresholdFreeShippingPolicy;
+use AIArmada\Shipping\Support\FreeShippingPolicyRegistry;
+use AIArmada\Shipping\Support\ZoneResolutionStrategyRegistry;
 use Illuminate\Support\Facades\Gate;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
@@ -42,6 +46,26 @@ final class ShippingServiceProvider extends PackageServiceProvider
 
         $this->app->alias(ShippingManager::class, 'shipping');
 
+        // Register free shipping policy registry with default threshold policy
+        $this->app->singleton(FreeShippingPolicyRegistry::class, function ($app): FreeShippingPolicyRegistry {
+            /** @var array<string, mixed> $config */
+            $config = (array) $app->make('config')->get('shipping.free_shipping', []);
+            $config['currency'] ??= (string) $app->make('config')->get('shipping.defaults.currency', 'MYR');
+
+            $registry = new FreeShippingPolicyRegistry;
+            $registry->register(new ThresholdFreeShippingPolicy($config));
+
+            return $registry;
+        });
+
+        // Register zone resolution strategy registry with default geo strategy
+        $this->app->singleton(ZoneResolutionStrategyRegistry::class, function (): ZoneResolutionStrategyRegistry {
+            $registry = new ZoneResolutionStrategyRegistry;
+            $registry->register(new GeoZoneResolutionStrategy);
+
+            return $registry;
+        });
+
         // Scoped so per-request memoization cache never bleeds across Octane requests
         $this->app->scoped(ShippingZoneResolver::class);
 
@@ -57,7 +81,10 @@ final class ShippingServiceProvider extends PackageServiceProvider
             $config = (array) $app->make('config')->get('shipping.free_shipping', []);
             $config['currency'] ??= (string) $app->make('config')->get('shipping.defaults.currency', 'MYR');
 
-            return new FreeShippingEvaluator($config);
+            return new FreeShippingEvaluator(
+                $app->make(FreeShippingPolicyRegistry::class),
+                $config,
+            );
         });
 
         if (class_exists(ConditionProviderRegistry::class)) {

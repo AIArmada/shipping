@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Services;
 
+use AIArmada\Shipping\Contracts\ZoneResolutionStrategyInterface;
 use AIArmada\Shipping\Data\AddressData;
 use AIArmada\Shipping\Models\ShippingRate;
 use AIArmada\Shipping\Models\ShippingZone;
+use AIArmada\Shipping\Strategies\GeoZoneResolutionStrategy;
 use AIArmada\Shipping\Support\ShippingOwnerScope;
+use AIArmada\Shipping\Support\ZoneResolutionStrategyRegistry;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -22,6 +25,14 @@ class ShippingZoneResolver
      * @var array<string, ShippingZone|null>
      */
     private array $resolvedZones = [];
+
+    public function __construct(
+        protected readonly ZoneResolutionStrategyRegistry $registry = new ZoneResolutionStrategyRegistry,
+    ) {
+        if ($this->registry->all() === []) {
+            $this->registry->register(new GeoZoneResolutionStrategy);
+        }
+    }
 
     /**
      * Resolve the matching zone for an address.
@@ -137,16 +148,19 @@ class ShippingZoneResolver
 
         $query = $this->applyOwnerScope($query, $ownerId, $ownerType);
 
-        $zones = $query->get();
+        $candidates = $query->get();
 
-        foreach ($zones as $zone) {
-            if ($zone->matchesAddress($address)) {
-                return $zone;
-            }
-        }
+        $strategy = $this->resolveStrategy();
+        $matched = $strategy->resolve($address, $candidates);
 
-        // Fall back to default zone
-        return $zones->firstWhere('is_default', true);
+        return $matched->first();
+    }
+
+    private function resolveStrategy(): ZoneResolutionStrategyInterface
+    {
+        $key = config('shipping.zone_resolution.strategy', 'geo');
+
+        return $this->registry->get($key);
     }
 
     /**

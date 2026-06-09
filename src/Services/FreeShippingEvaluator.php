@@ -4,120 +4,62 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Services;
 
-use AIArmada\CommerceSupport\Support\MoneyFormatter;
-use InvalidArgumentException;
+use AIArmada\Shipping\Contracts\FreeShippingPolicyInterface;
+use AIArmada\Shipping\Strategies\ThresholdFreeShippingPolicy;
+use AIArmada\Shipping\Support\FreeShippingPolicyRegistry;
 
 /**
- * Evaluates free shipping eligibility.
+ * Evaluates free shipping eligibility using registered policies.
  *
- * This service can work with any cart-like object that provides subtotal information,
- * or directly with a subtotal amount.
+ * Delegates to the FreeShippingPolicyRegistry which holds one or more
+ * FreeShippingPolicyInterface implementations. The default threshold-based
+ * policy is registered automatically; merchants can add custom policies.
  */
 class FreeShippingEvaluator
 {
-    /**
-     * @param  array<string, mixed>  $config
-     */
+    protected FreeShippingPolicyRegistry $registry;
+
+    protected array $config = [];
+
     public function __construct(
-        protected readonly array $config = []
-    ) {}
+        FreeShippingPolicyRegistry | array $registry = [],
+        array $config = [],
+    ) {
+        if ($registry instanceof FreeShippingPolicyRegistry) {
+            $this->registry = $registry;
+            $this->config = $config;
+        } else {
+            $this->config = $registry;
+            $this->registry = new FreeShippingPolicyRegistry;
+        }
 
-    /**
-     * Evaluate free shipping for a given subtotal amount.
-     *
-     * @param  int|object  $subtotal  The cart subtotal in minor units, or an object with subtotal()/getMinorAmount() method
-     */
-    public function evaluate(int | object $subtotal): ?FreeShippingResult
+        if ($this->registry->all() === []) {
+            $this->registry->register(new ThresholdFreeShippingPolicy($this->config));
+        }
+    }
+
+    public function evaluate(int | object $subtotal, array $context = []): ?FreeShippingResult
     {
-        $enabled = $this->config['enabled'] ?? false;
+        $policy = $this->resolvePolicy();
 
-        if (! $enabled) {
+        if ($policy === null) {
             return null;
         }
 
-        $threshold = $this->config['threshold'] ?? null;
+        return $policy->evaluate($subtotal, $context);
+    }
 
-        if ($threshold === null) {
+    /**
+     * Resolve the active free shipping policy.
+     */
+    protected function resolvePolicy(): ?FreeShippingPolicyInterface
+    {
+        $policyKey = $this->config['policy'] ?? 'threshold';
+
+        if (! $this->registry->has($policyKey)) {
             return null;
         }
 
-        $cartTotal = $this->resolveSubtotal($subtotal);
-
-        // Check if cart meets threshold
-        if ($cartTotal >= $threshold) {
-            return new FreeShippingResult(
-                applies: true,
-                message: 'Free shipping applied!',
-                currency: $this->config['currency'] ?? 'MYR',
-            );
-        }
-
-        // Calculate remaining amount
-        $remaining = $threshold - $cartTotal;
-
-        return new FreeShippingResult(
-            applies: false,
-            nearThreshold: true,
-            remainingAmount: $remaining,
-            currency: $this->config['currency'] ?? 'MYR',
-            message: $this->formatRemainingMessage($remaining),
-        );
-    }
-
-    /**
-     * Resolve the subtotal from various input types.
-     */
-    protected function resolveSubtotal(int | object $subtotal): int
-    {
-        if (is_int($subtotal)) {
-            return $subtotal;
-        }
-
-        // Handle Money-like objects with getMinorAmount() method (Brick\Money, etc.)
-        if (method_exists($subtotal, 'getMinorAmount')) {
-            $minorAmount = $subtotal->getMinorAmount();
-
-            return method_exists($minorAmount, 'toInt')
-                ? $minorAmount->toInt()
-                : (int) $minorAmount;
-        }
-
-        // Handle cart-like objects with subtotal() method
-        if (method_exists($subtotal, 'subtotal')) {
-            $result = $subtotal->subtotal();
-
-            if (is_int($result)) {
-                return $result;
-            }
-
-            // Handle Money-like object returned from subtotal()
-            if (is_object($result) && method_exists($result, 'getMinorAmount')) {
-                $minorAmount = $result->getMinorAmount();
-
-                return method_exists($minorAmount, 'toInt')
-                    ? $minorAmount->toInt()
-                    : (int) $minorAmount;
-            }
-
-            // Handle objects with getAmount() (older Money implementations)
-            if (is_object($result) && method_exists($result, 'getAmount')) {
-                return (int) $result->getAmount();
-            }
-        }
-
-        throw new InvalidArgumentException(
-            'FreeShippingEvaluator requires an integer (minor units), or object with subtotal()/getMinorAmount() method'
-        );
-    }
-
-    /**
-     * Format the remaining amount message.
-     */
-    protected function formatRemainingMessage(int $remaining): string
-    {
-        $currency = $this->config['currency'] ?? 'MYR';
-        $formatted = MoneyFormatter::formatMinor($remaining, $currency);
-
-        return "Add {$formatted} more for free shipping!";
+        return $this->registry->get($policyKey);
     }
 }
