@@ -26,7 +26,7 @@ final class CreateShipment
                 throw new AuthorizationException('Owner context is required when shipping owner scoping is enabled.');
             }
 
-            if ($ownerId !== null || $ownerType !== null) {
+            if (ShippingOwnerScope::isEnabled() && ($ownerId !== null || $ownerType !== null)) {
                 if ($resolvedOwner === null) {
                     throw new AuthorizationException('Cannot assign an owner without an owner context.');
                 }
