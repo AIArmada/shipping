@@ -39,8 +39,6 @@ use Spatie\ModelStates\HasStates;
  * @property int $shipping_cost
  * @property int $insurance_cost
  * @property int|null $cod_amount
- * @property string|null $label_url
- * @property string|null $label_format
  * @property CarbonInterface|null $shipped_at
  * @property CarbonInterface|null $estimated_delivery_at
  * @property CarbonInterface|null $delivered_at
@@ -90,8 +88,6 @@ class Shipment extends Model implements Auditable
         'shipping_cost',
         'insurance_cost',
         'cod_amount',
-        'label_url',
-        'label_format',
         'shipped_at',
         'estimated_delivery_at',
         'delivered_at',
