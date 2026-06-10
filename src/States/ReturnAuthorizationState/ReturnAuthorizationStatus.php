@@ -71,7 +71,6 @@ abstract class ReturnAuthorizationStatus extends State
             ->allowTransition(RmaApproved::class, RmaReceived::class)
             ->allowTransition(RmaApproved::class, RmaCancelled::class)
             ->allowTransition(RmaApproved::class, RmaExpired::class)
-            ->allowTransition(RmaReceived::class, RmaCompleted::class)
-        ;
+            ->allowTransition(RmaReceived::class, RmaCompleted::class);
     }
 }

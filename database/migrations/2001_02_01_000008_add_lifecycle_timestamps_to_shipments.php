@@ -12,7 +12,7 @@ return new class extends Migration
     {
         $tableName = config('shipping.database.tables.shipments', 'shipments');
 
-        Schema::table($tableName, function (Blueprint $table) use ($tableName): void {
+        Schema::table($tableName, function (Blueprint $table): void {
             $table->timestampTz('cancelled_at')->nullable()->after('delivered_at');
             $table->timestampTz('delivery_failed_at')->nullable()->after('cancelled_at');
         });

@@ -9,6 +9,11 @@ use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Shipping\Enums\ReturnReason;
+use AIArmada\Shipping\States\ReturnAuthorizationState\RmaApproved;
+use AIArmada\Shipping\States\ReturnAuthorizationState\RmaCancelled;
+use AIArmada\Shipping\States\ReturnAuthorizationState\RmaCompleted;
+use AIArmada\Shipping\States\ReturnAuthorizationState\RmaPending;
+use AIArmada\Shipping\States\ReturnAuthorizationState\RmaReceived;
 use AIArmada\Shipping\States\ReturnAuthorizationState\ReturnAuthorizationStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -150,17 +155,17 @@ class ReturnAuthorization extends Model implements Auditable
 
     public function isReceived(): bool
     {
-        return $this->status instanceof \AIArmada\Shipping\States\ReturnAuthorizationState\RmaReceived;
+        return $this->status instanceof RmaReceived;
     }
 
     public function isCompleted(): bool
     {
-        return $this->status instanceof \AIArmada\Shipping\States\ReturnAuthorizationState\RmaCompleted;
+        return $this->status instanceof RmaCompleted;
     }
 
     public function isCancelled(): bool
     {
-        return $this->status instanceof \AIArmada\Shipping\States\ReturnAuthorizationState\RmaCancelled;
+        return $this->status instanceof RmaCancelled;
     }
 
     public function isExpired(): bool
@@ -180,6 +185,16 @@ class ReturnAuthorization extends Model implements Auditable
     public function isTerminal(): bool
     {
         return $this->status->isTerminal();
+    }
+
+    public function scopePending(Builder $query): Builder
+    {
+        return $query->whereState('status', RmaPending::class);
+    }
+
+    public function scopeApproved(Builder $query): Builder
+    {
+        return $query->whereState('status', RmaApproved::class);
     }
 
     protected static function booted(): void
