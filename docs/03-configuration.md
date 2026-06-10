@@ -178,6 +178,39 @@ Shipping::extend('jnt', function ($container) {
 ],
 ```
 
+## Zone Resolution Strategy Registry
+
+The `ZoneResolutionStrategyRegistry` manages pluggable strategies for resolving shipping zones
+from an address. The default `GeoZoneResolutionStrategy` matches by country, state, city, and
+postcode. Register custom strategies in a service provider:
+
+```php
+use AIArmada\Shipping\Support\ZoneResolutionStrategyRegistry;
+use App\Shipping\Strategies\B2BZoneResolutionStrategy;
+
+$registry = app(ZoneResolutionStrategyRegistry::class);
+$registry->register(new B2BZoneResolutionStrategy(...));
+
+// Retrieve a strategy by key
+$strategy = $registry->get('geo');
+```
+
+## Free Shipping Policy Registry
+
+The `FreeShippingPolicyRegistry` manages pluggable free-shipping evaluation policies. The default
+`ThresholdFreeShippingPolicy` evaluates based on cart subtotal. Register custom policies in a service provider:
+
+```php
+use AIArmada\Shipping\Support\FreeShippingPolicyRegistry;
+use App\Shipping\Policies\MemberFreeShippingPolicy;
+
+$registry = app(FreeShippingPolicyRegistry::class);
+$registry->register(new MemberFreeShippingPolicy(...));
+
+// Retrieve a policy by key
+$policy = $registry->get('threshold');
+```
+
 ## Tracking
 
 ```php

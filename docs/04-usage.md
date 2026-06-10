@@ -2,6 +2,52 @@
 title: Usage
 ---
 
+## Canonical API: Actions
+
+The recommended entrypoint for shipment operations is the Action classes. Each Action uses `lorisleiva/laravel-actions`
+and supports both `::run()` (static) and `->handle()` (injected).
+
+```php
+use AIArmada\Shipping\Actions\CreateShipment;
+use AIArmada\Shipping\Actions\ShipShipment;
+use AIArmada\Shipping\Actions\CancelShipment;
+use AIArmada\Shipping\Actions\GenerateLabel;
+use AIArmada\Shipping\Actions\RecordTrackingEvent;
+use AIArmada\Shipping\Data\ShipmentData;
+use AIArmada\Shipping\Data\TrackingEventData;
+
+// Create a new shipment (Draft status)
+$shipment = CreateShipment::run(
+    ShipmentData::from([
+        'reference' => 'ORD-123',
+        'carrierCode' => 'manual',
+        'serviceCode' => 'standard',
+        'origin' => [...],
+        'destination' => [...],
+        'items' => [...],
+    ]),
+);
+
+// Ship the shipment (contacts carrier, transitions to Shipped)
+$shipment = ShipShipment::run($shipment);
+
+// Cancel a shipment (only Draft/Pending are cancellable)
+$shipment = CancelShipment::run($shipment, reason: 'Customer cancellation');
+
+// Generate a label for an existing shipment
+$label = GenerateLabel::run($shipment);
+
+// Record a tracking event
+$event = RecordTrackingEvent::run(
+    $shipment,
+    TrackingEventData::from([
+        'code' => 'pickup',
+        'description' => 'Package picked up',
+        'timestamp' => now(),
+    ]),
+);
+```
+
 # Basic Usage
 
 ## Using the Shipping Manager
@@ -341,10 +387,30 @@ $result = $evaluator->evaluate($cart);
 
 ## Returns Management
 
+Returns use a state machine (`spatie/laravel-model-states`) with 8 states:
+
+```
+Draft → Pending → Approved → Received → Completed
+  │        │          │
+  │        ├── Rejected     (terminal)
+  ├── Cancelled             (terminal)
+           └── Expired      (terminal)
+```
+
+| State | Class | Color | Terminal |
+|-------|-------|-------|----------|
+| Draft | `RmaDraft` | gray | No |
+| Pending | `RmaPending` | warning | No |
+| Approved | `RmaApproved` | success | No |
+| Rejected | `RmaRejected` | danger | Yes |
+| Received | `RmaReceived` | info | No |
+| Completed | `RmaCompleted` | success | Yes |
+| Cancelled | `RmaCancelled` | gray | Yes |
+| Expired | `RmaExpired` | warning | Yes |
+
 ### Creating an RMA
 
 ```php
-use AIArmada\Shipping\Actions\ApproveReturnAuthorization;
 use AIArmada\Shipping\Models\ReturnAuthorization;
 use AIArmada\Shipping\Enums\ReturnReason;
 
@@ -369,39 +435,67 @@ $rma->items()->create([
 ]);
 ```
 
-### Processing Returns
+New RMAs start in `RmaDraft` status.
+
+### Submitting for Review
 
 ```php
-// Approve return
-$rma = app(ApproveReturnAuthorization::class)->handle(
-    $rma,
-    notes: 'Visible shipping damage confirmed',
-    actorId: (string) auth()->id(),
-);
+use AIArmada\Shipping\States\ReturnAuthorizationState\RmaPending;
 
-// Record the approved quantity for each line item
-$rma->items()->first()?->update([
-    'quantity_approved' => 1,
-]);
-
-// Mark as received
-$rma->update([
-    'status' => 'received',
-    'received_at' => now(),
-]);
-
-// Record received quantities and complete the return
-$rma->items()->first()?->update([
-    'quantity_received' => 1,
-]);
-
-$rma->update([
-    'status' => 'completed',
-    'completed_at' => now(),
-]);
+$rma->status->transitionTo(RmaPending::class);
 ```
 
-## Status Workflow
+### Approving or Rejecting
+
+```php
+use AIArmada\Shipping\States\ReturnAuthorizationState\RmaApproved;
+use AIArmada\Shipping\States\ReturnAuthorizationState\RmaRejected;
+
+// Approve
+$rma->status->transitionTo(RmaApproved::class);
+$rma->update(['approved_at' => now(), 'approved_by' => auth()->id()]);
+
+// Reject
+$rma->status->transitionTo(RmaRejected::class);
+$rma->update(['rejected_at' => now(), 'rejected_by' => auth()->id()]);
+```
+
+### Marking as Received
+
+```php
+use AIArmada\Shipping\States\ReturnAuthorizationState\RmaReceived;
+
+$rma->status->transitionTo(RmaReceived::class);
+$rma->update(['received_at' => now()]);
+```
+
+### Completing the Return
+
+```php
+use AIArmada\Shipping\States\ReturnAuthorizationState\RmaCompleted;
+
+$rma->status->transitionTo(RmaCompleted::class);
+$rma->update(['completed_at' => now()]);
+```
+
+### Status Helpers
+
+```php
+$rma->isPending();     // status instanceof RmaPending
+$rma->isApproved();    // status instanceof RmaApproved
+$rma->isRejected();    // status instanceof RmaRejected
+$rma->isReceived();    // status instanceof RmaReceived
+$rma->isCompleted();   // status instanceof RmaCompleted
+$rma->isCancelled();   // status instanceof RmaCancelled
+$rma->isExpired();     // past expires_at and pending
+$rma->isTerminal();    // status is final
+
+// Scopes
+ReturnAuthorization::pending()->get();
+ReturnAuthorization::approved()->get();
+```
+
+## Shipment State Machine
 
 Shipments follow a state machine workflow:
 

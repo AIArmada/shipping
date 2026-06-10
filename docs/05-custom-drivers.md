@@ -395,6 +395,109 @@ Register the mapper:
 Shipping::registerStatusMapper(new JntStatusMapper());
 ```
 
+## Free Shipping Policy Interface
+
+Implement `FreeShippingPolicyInterface` to define custom free-shipping eligibility rules.
+Register implementations via `FreeShippingPolicyRegistry`.
+
+```php
+<?php
+
+namespace App\Shipping\Policies;
+
+use AIArmada\Shipping\Contracts\FreeShippingPolicyInterface;
+use AIArmada\Shipping\Services\FreeShippingResult;
+
+class MemberFreeShippingPolicy implements FreeShippingPolicyInterface
+{
+    public function key(): string
+    {
+        return 'member';
+    }
+
+    public function evaluate(int | object $subtotal, array $context = []): ?FreeShippingResult
+    {
+        $isMember = $context['is_member'] ?? false;
+
+        if (! $isMember) {
+            return null;
+        }
+
+        // Members get free shipping on orders above RM50
+        $threshold = 5000;
+
+        if ($subtotal >= $threshold) {
+            return new FreeShippingResult(
+                applies: true,
+                message: 'Free shipping for members!',
+            );
+        }
+
+        return new FreeShippingResult(
+            applies: false,
+            nearThreshold: true,
+            remainingAmount: $threshold - $subtotal,
+            message: 'Add more for free shipping!',
+        );
+    }
+}
+```
+
+Register in a service provider:
+
+```php
+use AIArmada\Shipping\Support\FreeShippingPolicyRegistry;
+
+$registry = app(FreeShippingPolicyRegistry::class);
+$registry->register(new MemberFreeShippingPolicy());
+```
+
+## Zone Resolution Strategy Interface
+
+Implement `ZoneResolutionStrategyInterface` to define custom zone matching logic.
+Register implementations via `ZoneResolutionStrategyRegistry`.
+
+```php
+<?php
+
+namespace App\Shipping\Strategies;
+
+use AIArmada\Shipping\Contracts\ZoneResolutionStrategyInterface;
+use AIArmada\Shipping\Data\AddressData;
+use AIArmada\Shipping\Models\ShippingZone;
+use Illuminate\Support\Collection;
+
+class B2BZoneResolutionStrategy implements ZoneResolutionStrategyInterface
+{
+    public function key(): string
+    {
+        return 'b2b';
+    }
+
+    public function resolve(AddressData $address, Collection $candidates): Collection
+    {
+        // Match zones that have a B2B tag or are flagged for business addresses
+        return $candidates->filter(fn (ShippingZone $zone) =>
+            ($zone->metadata['type'] ?? null) === 'b2b'
+            && $zone->matchesAddress($address)
+        );
+    }
+}
+```
+
+Register in a service provider:
+
+```php
+use AIArmada\Shipping\Support\ZoneResolutionStrategyRegistry;
+
+$registry = app(ZoneResolutionStrategyRegistry::class);
+$registry->register(new B2BZoneResolutionStrategy());
+```
+
+The `ZoneResolutionStrategyRegistry` is consumed by `ShippingZoneResolver` to find matching
+zones. The default resolver uses the `geo` strategy; you can override which key to use via
+configuration or by extending the resolver.
+
 ## Testing Your Driver
 
 ```php

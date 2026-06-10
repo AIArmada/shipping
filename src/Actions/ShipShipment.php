@@ -10,6 +10,7 @@ use AIArmada\Shipping\Events\ShipmentShipped;
 use AIArmada\Shipping\Exceptions\ShipmentAlreadyShippedException;
 use AIArmada\Shipping\Exceptions\ShipmentCreationFailedException;
 use AIArmada\Shipping\Models\Shipment;
+use AIArmada\Shipping\Models\ShipmentLabel;
 use AIArmada\Shipping\Services\RetryService;
 use AIArmada\Shipping\ShippingManager;
 use AIArmada\Shipping\States\Shipped;
@@ -82,7 +83,11 @@ final class ShipShipment
             ]);
 
             if ($result->labelUrl !== null) {
-                $shipment->update(['label_url' => $result->labelUrl]);
+                $shipment->labels()->create([
+                    'format' => 'unknown',
+                    'url' => $result->labelUrl,
+                    'generated_at' => CarbonImmutable::now(),
+                ]);
             }
 
             if ($result->labelUrl === null && $driver->supports(DriverCapability::LabelGeneration)) {

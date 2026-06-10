@@ -37,13 +37,6 @@ final class GenerateLabel
             'generated_at' => CarbonImmutable::now(),
         ]);
 
-        if ($labelData->url !== null) {
-            $shipment->update([
-                'label_url' => $labelData->url,
-                'label_format' => $labelData->format,
-            ]);
-        }
-
         return $label;
     }
 }

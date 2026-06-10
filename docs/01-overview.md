@@ -32,8 +32,13 @@ The `aiarmada/shipping` package provides the carrier-agnostic shipping and fulfi
 ## Main models services or surfaces
 
 - **Models** — shipment, shipment item, shipment event, shipment label, shipping zone, shipping rate, return authorization, return authorization item
+- **Actions** — `CreateShipment`, `ShipShipment`, `CancelShipment`, `GenerateLabel`, `RecordTrackingEvent`
+- **Contracts** — `ShippingDriverInterface`, `FreeShippingPolicyInterface`, `ZoneResolutionStrategyInterface`, `RateSelectionStrategyInterface`, `StatusMapperInterface`
+- **Strategies** — `GeoZoneResolutionStrategy`, `ThresholdFreeShippingPolicy`, plus rate selection strategies (`CheapestRateStrategy`, `FastestRateStrategy`, `BalancedRateStrategy`, `PreferredCarrierStrategy`)
 - **Core surfaces** — `ShippingManager`, driver interface, rate shopping, label generation, tracking, returns, and strategy selection
 - **Handlers and services** — orders integration, rate caching, and fulfilment helpers
+- **Registries** — `ZoneResolutionStrategyRegistry`, `FreeShippingPolicyRegistry`
+- **Filament support** — `ShippingStatsAggregator` (in `aiarmada/filament-shipping`)
 
 ## Owner scoping and security notes
 
@@ -110,6 +115,7 @@ packages/shipping/
 │   ├── factories/             # Model factories for testing
 │   └── migrations/            # Database migrations
 ├── src/
+│   ├── Actions/               # Action classes (CreateShipment, ShipShipment, etc.)
 │   ├── Contracts/             # Interfaces and contracts
 │   ├── Data/                  # Spatie Laravel Data DTOs
 │   ├── Drivers/               # Shipping driver implementations
@@ -120,15 +126,18 @@ packages/shipping/
 │   ├── Models/                # Eloquent models
 │   ├── Policies/              # Authorization policies
 │   ├── Services/              # Core business logic
-│   ├── Strategies/            # Rate selection strategies
-│   ├── Support/               # Helper classes
+│   ├── States/                # State machine classes
+│   ├── Strategies/            # Rate selection, zone resolution, free shipping strategies
+│   ├── Support/               # Helper classes, registries, owner scope
 │   ├── ShippingManager.php    # Main manager class
+│   ├── Facades/               # Facade class
 │   └── ShippingServiceProvider.php
 └── docs/
     ├── 01-overview.md         # Package overview
     ├── 02-installation.md     # Installation and setup
     ├── 03-configuration.md    # Configuration reference
     ├── 04-usage.md            # Core usage patterns
+    ├── 05-custom-drivers.md   # Custom drivers and extensions
     └── 99-troubleshooting.md  # Troubleshooting guide
 ```
 
