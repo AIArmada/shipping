@@ -9,12 +9,12 @@ use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Shipping\Enums\ReturnReason;
+use AIArmada\Shipping\States\ReturnAuthorizationState\ReturnAuthorizationStatus;
 use AIArmada\Shipping\States\ReturnAuthorizationState\RmaApproved;
 use AIArmada\Shipping\States\ReturnAuthorizationState\RmaCancelled;
 use AIArmada\Shipping\States\ReturnAuthorizationState\RmaCompleted;
 use AIArmada\Shipping\States\ReturnAuthorizationState\RmaPending;
 use AIArmada\Shipping\States\ReturnAuthorizationState\RmaReceived;
-use AIArmada\Shipping\States\ReturnAuthorizationState\ReturnAuthorizationStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -92,9 +92,7 @@ class ReturnAuthorization extends Model implements Auditable
     /**
      * @var array<string, mixed>
      */
-    protected $attributes = [
-        'status' => 'draft',
-    ];
+    protected $attributes = [];
 
     public static function generateRmaNumber(): string
     {
