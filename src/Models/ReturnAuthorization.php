@@ -9,6 +9,7 @@ use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Shipping\Enums\ReturnReason;
+use AIArmada\Shipping\States\ReturnAuthorizationState\ReturnAuthorizationStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -19,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Support\Str;
 use OwenIt\Auditing\Contracts\Auditable;
+use Spatie\ModelStates\HasStates;
 
 /**
  * @property string $id
@@ -26,7 +28,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $original_shipment_id
  * @property string|null $order_reference
  * @property string|null $customer_id
- * @property string $status
+ * @property ReturnAuthorizationStatus $status
  * @property string $type
  * @property string $reason
  * @property string|null $reason_details
@@ -36,6 +38,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property CarbonImmutable|null $rejected_at
  * @property CarbonImmutable|null $received_at
  * @property CarbonImmutable|null $completed_at
+ * @property CarbonImmutable|null $cancelled_at
  * @property CarbonImmutable|null $expires_at
  * @property array|null $metadata
  * @property CarbonImmutable $created_at
@@ -49,6 +52,7 @@ class ReturnAuthorization extends Model implements Auditable
     use HasCommerceAudit;
     use HasOwner;
     use HasOwnerScopeConfig;
+    use HasStates;
     use HasUuids;
     use LogsCommerceActivity;
 
@@ -75,6 +79,7 @@ class ReturnAuthorization extends Model implements Auditable
         'rejected_at',
         'received_at',
         'completed_at',
+        'cancelled_at',
         'expires_at',
         'metadata',
     ];
@@ -83,7 +88,7 @@ class ReturnAuthorization extends Model implements Auditable
      * @var array<string, mixed>
      */
     protected $attributes = [
-        'status' => 'pending',
+        'status' => 'draft',
     ];
 
     public static function generateRmaNumber(): string
@@ -125,59 +130,37 @@ class ReturnAuthorization extends Model implements Auditable
     }
 
     // ─────────────────────────────────────────────────────────────
-    // SCOPES
-    // ─────────────────────────────────────────────────────────────
-
-    /**
-     * @param  Builder<ReturnAuthorization>  $query
-     * @return Builder<ReturnAuthorization>
-     */
-    public function scopePending(Builder $query): Builder
-    {
-        return $query->where('status', 'pending');
-    }
-
-    /**
-     * @param  Builder<ReturnAuthorization>  $query
-     * @return Builder<ReturnAuthorization>
-     */
-    public function scopeApproved(Builder $query): Builder
-    {
-        return $query->where('status', 'approved');
-    }
-
-    // ─────────────────────────────────────────────────────────────
     // STATUS HELPERS
     // ─────────────────────────────────────────────────────────────
 
     public function isPending(): bool
     {
-        return $this->status === 'pending';
+        return $this->status->isPending();
     }
 
     public function isApproved(): bool
     {
-        return $this->status === 'approved';
+        return $this->status->isApproved();
     }
 
     public function isRejected(): bool
     {
-        return $this->status === 'rejected';
+        return $this->status->isRejected();
     }
 
     public function isReceived(): bool
     {
-        return $this->status === 'received';
+        return $this->status instanceof \AIArmada\Shipping\States\ReturnAuthorizationState\RmaReceived;
     }
 
     public function isCompleted(): bool
     {
-        return $this->status === 'completed';
+        return $this->status instanceof \AIArmada\Shipping\States\ReturnAuthorizationState\RmaCompleted;
     }
 
     public function isCancelled(): bool
     {
-        return $this->status === 'cancelled';
+        return $this->status instanceof \AIArmada\Shipping\States\ReturnAuthorizationState\RmaCancelled;
     }
 
     public function isExpired(): bool
@@ -192,6 +175,11 @@ class ReturnAuthorization extends Model implements Auditable
     public function getReasonEnum(): ?ReturnReason
     {
         return ReturnReason::tryFrom($this->reason);
+    }
+
+    public function isTerminal(): bool
+    {
+        return $this->status->isTerminal();
     }
 
     protected static function booted(): void
@@ -211,11 +199,13 @@ class ReturnAuthorization extends Model implements Auditable
     protected function casts(): array
     {
         return [
-            'approved_at' => 'datetime',
-            'rejected_at' => 'datetime',
-            'received_at' => 'datetime',
-            'completed_at' => 'datetime',
-            'expires_at' => 'datetime',
+            'status' => ReturnAuthorizationStatus::class,
+            'approved_at' => 'immutable_datetime',
+            'rejected_at' => 'immutable_datetime',
+            'received_at' => 'immutable_datetime',
+            'completed_at' => 'immutable_datetime',
+            'cancelled_at' => 'immutable_datetime',
+            'expires_at' => 'immutable_datetime',
             'metadata' => 'array',
         ];
     }

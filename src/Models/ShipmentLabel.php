@@ -80,7 +80,7 @@ class ShipmentLabel extends Model implements Auditable
     protected function casts(): array
     {
         return [
-            'generated_at' => 'datetime',
+            'generated_at' => 'immutable_datetime',
         ];
     }
 }

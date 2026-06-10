@@ -44,6 +44,8 @@ use Spatie\ModelStates\HasStates;
  * @property CarbonInterface|null $shipped_at
  * @property CarbonInterface|null $estimated_delivery_at
  * @property CarbonInterface|null $delivered_at
+ * @property CarbonInterface|null $cancelled_at
+ * @property CarbonInterface|null $delivery_failed_at
  * @property CarbonInterface|null $last_tracking_sync
  * @property array|null $metadata
  * @property CarbonInterface $created_at
@@ -93,6 +95,8 @@ class Shipment extends Model implements Auditable
         'shipped_at',
         'estimated_delivery_at',
         'delivered_at',
+        'cancelled_at',
+        'delivery_failed_at',
         'last_tracking_sync',
         'metadata',
     ];
@@ -254,10 +258,12 @@ class Shipment extends Model implements Auditable
             'shipping_cost' => 'integer',
             'insurance_cost' => 'integer',
             'cod_amount' => 'integer',
-            'shipped_at' => 'datetime',
-            'estimated_delivery_at' => 'datetime',
-            'delivered_at' => 'datetime',
-            'last_tracking_sync' => 'datetime',
+            'shipped_at' => 'immutable_datetime',
+            'estimated_delivery_at' => 'immutable_datetime',
+            'delivered_at' => 'immutable_datetime',
+            'cancelled_at' => 'immutable_datetime',
+            'delivery_failed_at' => 'immutable_datetime',
+            'last_tracking_sync' => 'immutable_datetime',
             'metadata' => 'array',
         ];
     }

@@ -87,7 +87,7 @@ class ShipmentEvent extends Model
     {
         return [
             'normalized_status' => TrackingStatus::class,
-            'occurred_at' => 'datetime',
+            'occurred_at' => 'immutable_datetime',
             'raw_data' => 'array',
         ];
     }
