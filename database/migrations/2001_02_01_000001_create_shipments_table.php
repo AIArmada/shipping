@@ -40,12 +40,11 @@ return new class extends Migration
             $table->unsignedInteger('insurance_cost')->default(0);
             $table->unsignedInteger('cod_amount')->nullable();
 
-            $table->string('label_url')->nullable();
-            $table->string('label_format', 10)->nullable();
-
             $table->timestampTz('shipped_at')->nullable();
             $table->timestampTz('estimated_delivery_at')->nullable();
             $table->timestampTz('delivered_at')->nullable();
+            $table->timestampTz('cancelled_at')->nullable();
+            $table->timestampTz('delivery_failed_at')->nullable();
             $table->timestampTz('last_tracking_sync')->nullable();
 
             $table->{$jsonType}('metadata')->nullable();

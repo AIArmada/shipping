@@ -10,7 +10,6 @@ use AIArmada\Shipping\Events\ShipmentShipped;
 use AIArmada\Shipping\Exceptions\ShipmentAlreadyShippedException;
 use AIArmada\Shipping\Exceptions\ShipmentCreationFailedException;
 use AIArmada\Shipping\Models\Shipment;
-use AIArmada\Shipping\Models\ShipmentLabel;
 use AIArmada\Shipping\Services\RetryService;
 use AIArmada\Shipping\ShippingManager;
 use AIArmada\Shipping\States\Shipped;

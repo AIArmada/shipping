@@ -35,6 +35,7 @@ return new class extends Migration
             $table->timestampTz('rejected_at')->nullable();
             $table->timestampTz('received_at')->nullable();
             $table->timestampTz('completed_at')->nullable();
+            $table->timestampTz('cancelled_at')->nullable();
             $table->timestampTz('expires_at')->nullable();
 
             $table->{$jsonType}('metadata')->nullable();
