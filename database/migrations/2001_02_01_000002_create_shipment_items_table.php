@@ -28,7 +28,7 @@ return new class extends Migration
             $table->unsignedInteger('declared_value')->default(0);
 
             $table->string('hs_code')->nullable();
-            $table->string('origin_country', 3)->nullable();
+            $table->string('origin_country', 2)->nullable();
 
             $table->{$jsonType}('metadata')->nullable();
             $table->timestampsTz();
