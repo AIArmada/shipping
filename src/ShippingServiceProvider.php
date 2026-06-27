@@ -119,8 +119,6 @@ final class ShippingServiceProvider extends PackageServiceProvider
     public function bootingPackage(): void
     {
         $this->registerPolicies();
-        $this->registerEventListeners();
-        $this->registerCommands();
     }
 
     protected function registerPolicies(): void
@@ -128,19 +126,5 @@ final class ShippingServiceProvider extends PackageServiceProvider
         Gate::policy(Shipment::class, ShipmentPolicy::class);
         Gate::policy(ShippingZone::class, ShippingZonePolicy::class);
         Gate::policy(ReturnAuthorization::class, ReturnAuthorizationPolicy::class);
-    }
-
-    protected function registerEventListeners(): void
-    {
-        // Event listeners will be registered here
-    }
-
-    protected function registerCommands(): void
-    {
-        if ($this->app->runningInConsole()) {
-            $this->commands([
-                // Commands will be registered here
-            ]);
-        }
     }
 }
