@@ -34,23 +34,17 @@ All configuration is in `config/shipping.php`. Below is a complete reference.
 
 ```php
 'defaults' => [
-    // Default currency for shipping costs
-    'currency' => env('SHIPPING_CURRENCY', 'MYR'),
-    
-    // Weight unit: 'g' (grams) or 'kg' (kilograms)
+    'currency' => env('SHIPPING_DEFAULT_CURRENCY', 'MYR'),
     'weight_unit' => 'g',
-    
-    // Dimension unit: 'cm' or 'in'
-    'dimension_unit' => 'cm',
-    
-    // Default origin address
     'origin' => [
+        'name' => env('SHIPPING_ORIGIN_NAME', env('APP_NAME', 'Store')),
+        'phone' => env('SHIPPING_ORIGIN_PHONE', ''),
         'line1' => env('SHIPPING_ORIGIN_LINE1'),
         'line2' => env('SHIPPING_ORIGIN_LINE2'),
-        'city' => env('SHIPPING_ORIGIN_CITY'),
-        'state' => env('SHIPPING_ORIGIN_STATE'),
         'postcode' => env('SHIPPING_ORIGIN_POSTCODE'),
         'country' => env('SHIPPING_ORIGIN_COUNTRY', 'MY'),
+        'state' => env('SHIPPING_ORIGIN_STATE'),
+        'city' => env('SHIPPING_ORIGIN_CITY'),
     ],
 ],
 ```
@@ -60,11 +54,9 @@ All configuration is in `config/shipping.php`. Below is a complete reference.
 ```php
 'features' => [
     'owner' => [
-        // Enable tenant isolation
-        'enabled' => false,
-        
-        // Include global (null owner) records
-        'include_global' => true,
+        'enabled' => env('SHIPPING_OWNER_ENABLED', false),
+        'include_global' => env('SHIPPING_OWNER_INCLUDE_GLOBAL', false),
+        'auto_assign_on_create' => env('SHIPPING_OWNER_AUTO_ASSIGN_ON_CREATE', true),
     ],
 ],
 ```
@@ -244,7 +236,7 @@ $policy = $registry->get('threshold');
 return [
     'database' => [
         'table_prefix' => 'shipping_',
-        'json_column_type' => 'json',
+'json_column_type' => env('SHIPPING_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
         'tables' => [],
     ],
 
