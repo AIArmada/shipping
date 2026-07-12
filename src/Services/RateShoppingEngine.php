@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Services;
 
+use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\CommerceSupport\Support\OwnerScopeKey;
 use AIArmada\Shipping\Contracts\RateSelectionStrategyInterface;
 use AIArmada\Shipping\Data\AddressData;
 use AIArmada\Shipping\Data\PackageData;
@@ -58,7 +60,7 @@ class RateShoppingEngine
         }
 
         if ($cacheTtl > 0) {
-            $repository = Cache::store();
+            $repository = $this->cacheRepository();
 
             if ($repository->getStore() instanceof TaggableStore) {
                 return $repository->tags($this->cacheTags())->remember($cacheKey, $cacheTtl, function () use ($origin, $destination, $packages, $options) {
@@ -146,7 +148,7 @@ class RateShoppingEngine
      */
     public function clearCache(): void
     {
-        $repository = Cache::store();
+        $repository = $this->cacheRepository();
 
         if ($repository->getStore() instanceof TaggableStore) {
             $repository->tags($this->cacheTags())->flush();
@@ -249,7 +251,11 @@ class RateShoppingEngine
      */
     protected function cacheTags(): array
     {
-        return ['shipping', 'shipping:rates'];
+        if (! (bool) config('shipping.features.owner.enabled', false)) {
+            return ['shipping', 'shipping:rates'];
+        }
+
+        return ['shipping-rates-owner-' . $this->ownerScopeKey()];
     }
 
     /**
@@ -275,11 +281,6 @@ class RateShoppingEngine
     }
 
     /**
-     * Build cache key for rate lookup.
-     *
-     * @param  array<PackageData>  $packages
-     */
-    /**
      * Build a cache key for rate lookup.
      *
      * Returns null when options are not safely hashable (objects/resources),
@@ -290,20 +291,37 @@ class RateShoppingEngine
      */
     protected function buildCacheKey(AddressData $origin, AddressData $destination, array $packages, array $options = []): ?string
     {
-        $totalWeight = array_sum(array_map(fn (PackageData $p) => $p->weight, $packages));
-
         $optionsHash = $this->hashForCache($options);
         if ($optionsHash === null) {
             return null;
         }
 
         return 'shipping:rates:' . md5(serialize([
-            'origin' => $origin->postcode,
-            'destination' => $destination->postcode . $destination->country,
-            'weight' => $totalWeight,
-            'packages' => count($packages),
+            'owner' => $this->ownerScopeKey(),
+            'origin' => $origin->toArray(),
+            'destination' => $destination->toArray(),
+            'packages' => array_map(
+                static fn (PackageData $package): array => $package->toArray(),
+                $packages,
+            ),
             'options' => $optionsHash,
         ]));
+    }
+
+    private function ownerScopeKey(): string
+    {
+        if (! (bool) config('shipping.features.owner.enabled', false)) {
+            return OwnerScopeKey::GLOBAL;
+        }
+
+        $owner = OwnerContext::resolve();
+
+        OwnerContext::assertResolvedOrExplicitGlobal(
+            $owner,
+            'Shipping rate cache access requires an owner context or explicit global context.',
+        );
+
+        return OwnerScopeKey::forOwner($owner);
     }
 
     /**

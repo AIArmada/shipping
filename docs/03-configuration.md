@@ -13,9 +13,6 @@ All configuration is in `config/shipping.php`. Below is a complete reference.
     // Table name prefix
     'table_prefix' => 'shipping_',
     
-    // JSON column type (json or jsonb for PostgreSQL)
-    'json_column_type' => 'json',
-    
     // Override individual table names
     'tables' => [
         'shipments' => null,           // Uses prefix + 'shipments'
@@ -125,24 +122,31 @@ Shipping::extend('jnt', function ($container) {
 });
 ```
 
+## Zone Resolution
+
+```php
+'zone_resolution' => [
+    'strategy' => env('SHIPPING_ZONE_RESOLUTION_STRATEGY', 'geo'),
+],
+```
+
+The strategy key must identify a strategy registered in `ZoneResolutionStrategyRegistry`; `geo` is registered by default.
+
 ## Rate Shopping
 
 ```php
 'rate_shopping' => [
-    // Enable rate comparison across carriers
-    'enabled' => true,
-    
     // Rate selection strategy
-    'strategy' => 'cheapest', // cheapest, fastest, preferred_carrier, balanced
-    
-    // Cache duration in minutes
-    'cache_ttl' => 5,
-    
-    // Fallback driver if rate shopping fails
-    'fallback_driver' => 'manual',
-    
-    // Preferred carrier for 'preferred_carrier' strategy
-    'preferred_carrier' => null,
+    'strategy' => 'cheapest', // cheapest, fastest, preferred
+
+    // Cache duration in seconds
+    'cache_ttl' => 300,
+
+    // Fall back to the manual driver when carriers fail
+    'fallback_to_manual' => true,
+
+    // Lower values have higher priority
+    'carrier_priority' => [],
 ],
 ```
 
@@ -152,8 +156,7 @@ Shipping::extend('jnt', function ($container) {
 |----------|-------------|
 | `cheapest` | Select the lowest cost option |
 | `fastest` | Select the fastest delivery option |
-| `preferred_carrier` | Prefer a specific carrier, fall back to cheapest |
-| `balanced` | Balance between cost and speed |
+| `preferred` | Use `carrier_priority`, falling back to the cheapest quote |
 
 ## Free Shipping
 
@@ -236,7 +239,6 @@ $policy = $registry->get('threshold');
 return [
     'database' => [
         'table_prefix' => 'shipping_',
-'json_column_type' => env('SHIPPING_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
         'tables' => [],
     ],
 

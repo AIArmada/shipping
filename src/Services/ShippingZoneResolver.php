@@ -164,9 +164,6 @@ class ShippingZoneResolver
     }
 
     /**
-     * Build a cache key from address and owner parameters.
-     */
-    /**
      * @param  Builder<ShippingZone>  $query
      * @return Builder<ShippingZone>
      */

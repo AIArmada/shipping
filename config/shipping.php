@@ -23,7 +23,6 @@ return [
     */
     'database' => [
         'table_prefix' => $tablePrefix,
-        'json_column_type' => env('SHIPPING_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
         'tables' => $tables,
     ],
 
@@ -98,6 +97,15 @@ return [
             'driver' => 'zone',
             'name' => 'Zone-Based Shipping',
         ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Zone Resolution
+    |--------------------------------------------------------------------------
+    */
+    'zone_resolution' => [
+        'strategy' => env('SHIPPING_ZONE_RESOLUTION_STRATEGY', 'geo'),
     ],
 
     /*
