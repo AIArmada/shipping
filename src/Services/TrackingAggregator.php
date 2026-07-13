@@ -22,7 +22,6 @@ use AIArmada\Shipping\States\InTransit;
 use AIArmada\Shipping\States\OutForDelivery;
 use AIArmada\Shipping\States\ReturnToSender;
 use AIArmada\Shipping\States\ShipmentStatus as ShipmentStatusState;
-use AIArmada\Shipping\Support\ShippingOwnerScope;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -127,7 +126,7 @@ class TrackingAggregator
 
         $query = Shipment::query();
 
-        if (ShippingOwnerScope::isEnabled()) {
+        if (config('shipping.features.owner.enabled', false)) {
             $query->forOwner($owner, includeGlobal: $owner === null);
         }
 

@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace AIArmada\Shipping\Contracts;
 
 use AIArmada\Shipping\Data\AddressData;
+use AIArmada\Shipping\Contracts\AddressValidationResult;
+use AIArmada\Shipping\Data\CarrierOperationResult;
 use AIArmada\Shipping\Data\LabelData;
 use AIArmada\Shipping\Data\PackageData;
 use AIArmada\Shipping\Data\RateQuoteData;
 use AIArmada\Shipping\Data\ShipmentData;
-use AIArmada\Shipping\Data\ShipmentResultData;
 use AIArmada\Shipping\Data\ShippingMethodData;
 use AIArmada\Shipping\Data\TrackingData;
 use AIArmada\Shipping\Enums\DriverCapability;
@@ -59,15 +60,9 @@ interface ShippingDriverInterface
         array $options = []
     ): Collection;
 
-    /**
-     * Create a shipment with the carrier.
-     */
-    public function createShipment(ShipmentData $data): ShipmentResultData;
+    public function createShipment(ShipmentData $data): CarrierOperationResult;
 
-    /**
-     * Cancel a shipment.
-     */
-    public function cancelShipment(string $trackingNumber): bool;
+    public function cancelShipment(string $trackingNumber): CarrierOperationResult;
 
     /**
      * Generate shipping label.

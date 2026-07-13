@@ -51,6 +51,7 @@ use Spatie\ModelStates\HasStates;
  * @property-read Collection<int, ShipmentItem> $items
  * @property-read Collection<int, ShipmentEvent> $events
  * @property-read Collection<int, ShipmentLabel> $labels
+ * @property-read Collection<int, ShipmentOperation> $operations
  */
 class Shipment extends Model implements Auditable
 {
@@ -140,6 +141,11 @@ class Shipment extends Model implements Auditable
     public function labels(): HasMany
     {
         return $this->hasMany(ShipmentLabel::class);
+    }
+
+    public function operations(): HasMany
+    {
+        return $this->hasMany(ShipmentOperation::class);
     }
 
     public function latestLabel(): ?ShipmentLabel

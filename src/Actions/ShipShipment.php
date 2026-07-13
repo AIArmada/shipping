@@ -5,20 +5,20 @@ declare(strict_types=1);
 namespace AIArmada\Shipping\Actions;
 
 use AIArmada\Shipping\Data\ShipmentData;
-use AIArmada\Shipping\Enums\DriverCapability;
+use AIArmada\Shipping\Enums\ShipmentOperationStatus;
 use AIArmada\Shipping\Events\ShipmentShipped;
 use AIArmada\Shipping\Exceptions\ShipmentAlreadyShippedException;
 use AIArmada\Shipping\Exceptions\ShipmentCreationFailedException;
 use AIArmada\Shipping\Models\Shipment;
+use AIArmada\Shipping\Models\ShipmentOperation;
 use AIArmada\Shipping\Services\RetryService;
 use AIArmada\Shipping\ShippingManager;
 use AIArmada\Shipping\States\Shipped;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
 use RuntimeException;
-use Throwable;
 
 final class ShipShipment
 {
@@ -32,85 +32,81 @@ final class ShipShipment
 
     public function handle(Shipment $shipment): Shipment
     {
-        if (! $shipment->isPending()) {
-            throw new ShipmentAlreadyShippedException($shipment);
-        }
+        $lockKey = "shipment:{$shipment->getKey()}:ship";
 
-        $driver = $this->shippingManager->driver($shipment->carrier_code);
+        return Cache::lock($lockKey, 30)->block(30, function () use ($shipment): Shipment {
+            if (! $shipment->isPending()) {
+                throw new ShipmentAlreadyShippedException($shipment);
+            }
 
-        $result = $this->retry()
-            ->attempts(3)
-            ->delay(200)
-            ->backoff(2.0)
-            ->execute(
-                fn () => $driver->createShipment(
-                    ShipmentData::from([
-                        'reference' => $shipment->reference,
-                        'carrierCode' => $shipment->carrier_code,
-                        'serviceCode' => $shipment->service_code ?? 'standard',
-                        'origin' => $shipment->origin_address,
-                        'destination' => $shipment->destination_address,
-                        'items' => $shipment->items->map(fn ($item) => [
-                            'name' => $item->name,
-                            'quantity' => $item->quantity,
-                            'sku' => $item->sku,
-                            'weight' => $item->weight,
-                            'declaredValue' => $item->declared_value,
-                        ])->toArray(),
-                        'declaredValue' => $shipment->declared_value,
-                        'currency' => $shipment->currency,
-                        'codAmount' => $shipment->cod_amount,
-                    ])
-                ),
-                context: "ship:{$shipment->id}"
+            $driver = $this->shippingManager->driver($shipment->carrier_code);
+
+            $operation = ShipmentOperation::recordStart(
+                (string) $shipment->getKey(),
+                'create',
+                $shipment->reference,
             );
 
-        if (! $result->isSuccessful()) {
-            throw new ShipmentCreationFailedException($result->error ?? 'Unknown error');
-        }
-
-        return DB::transaction(function () use ($shipment, $result, $driver) {
-            $shipment = $shipment->status->transitionTo(Shipped::class);
-            if (! $shipment instanceof Shipment) {
-                throw new RuntimeException('Failed to update shipment status.');
+            if ($operation->status() !== ShipmentOperationStatus::Pending) {
+                throw new ShipmentCreationFailedException('Another shipment operation is already in progress or completed.');
             }
 
-            $shipment->update([
-                'tracking_number' => $result->trackingNumber,
-                'carrier_reference' => $result->carrierReference,
-                'shipped_at' => CarbonImmutable::now(),
-            ]);
+            $result = $this->retry()
+                ->attempts(3)
+                ->delay(200)
+                ->backoff(2.0)
+                ->execute(
+                    fn () => $driver->createShipment(
+                        ShipmentData::from([
+                            'reference' => $shipment->reference,
+                            'carrierCode' => $shipment->carrier_code,
+                            'serviceCode' => $shipment->service_code ?? 'standard',
+                            'origin' => $shipment->origin_address,
+                            'destination' => $shipment->destination_address,
+                            'items' => $shipment->items->map(fn ($item) => [
+                                'name' => $item->name,
+                                'quantity' => $item->quantity,
+                                'sku' => $item->sku,
+                                'weight' => $item->weight,
+                                'declaredValue' => $item->declared_value,
+                            ])->toArray(),
+                            'declaredValue' => $shipment->declared_value,
+                            'currency' => $shipment->currency,
+                            'codAmount' => $shipment->cod_amount,
+                        ])
+                    ),
+                    context: "ship:{$shipment->id}"
+                );
 
-            if ($result->labelUrl !== null) {
-                $shipment->labels()->create([
-                    'format' => 'unknown',
-                    'url' => $result->labelUrl,
-                    'generated_at' => CarbonImmutable::now(),
-                ]);
+            $operation->complete($result);
+
+            if (! $result->success && ! $result->alreadyApplied) {
+                throw new ShipmentCreationFailedException($result->error ?? 'Unknown error during carrier shipment creation');
             }
 
-            if ($result->labelUrl === null && $driver->supports(DriverCapability::LabelGeneration)) {
-                try {
-                    $this->labelGenerator()->handle($shipment);
-                } catch (Throwable $e) {
-                    Log::warning('Label generation failed for shipment', [
-                        'shipment_id' => $shipment->id,
-                        'tracking_number' => $shipment->tracking_number,
-                        'error' => $e->getMessage(),
-                    ]);
+            return DB::transaction(function () use ($shipment, $result) {
+                $shipment = $shipment->status->transitionTo(Shipped::class);
+                if (! $shipment instanceof Shipment) {
+                    throw new RuntimeException('Failed to update shipment status.');
                 }
-            }
 
-            $shipment->events()->create([
-                'carrier_event_code' => 'shipped',
-                'normalized_status' => $shipment->status->toTrackingStatus(),
-                'description' => 'Shipment created with carrier',
-                'occurred_at' => CarbonImmutable::now(),
-            ]);
+                $shipment->update([
+                    'tracking_number' => $result->trackingNumber ?? $shipment->tracking_number,
+                    'carrier_reference' => $result->carrierReference ?? $shipment->carrier_reference,
+                    'shipped_at' => CarbonImmutable::now(),
+                ]);
 
-            event(new ShipmentShipped($shipment));
+                $shipment->events()->create([
+                    'carrier_event_code' => 'shipped',
+                    'normalized_status' => $shipment->status->toTrackingStatus(),
+                    'description' => 'Shipment created with carrier',
+                    'occurred_at' => CarbonImmutable::now(),
+                ]);
 
-            return $shipment->refresh();
+                event(new ShipmentShipped($shipment));
+
+                return $shipment->refresh();
+            });
         });
     }
 

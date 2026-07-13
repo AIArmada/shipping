@@ -11,7 +11,7 @@ use AIArmada\Shipping\Data\LabelData;
 use AIArmada\Shipping\Data\PackageData;
 use AIArmada\Shipping\Data\RateQuoteData;
 use AIArmada\Shipping\Data\ShipmentData;
-use AIArmada\Shipping\Data\ShipmentResultData;
+use AIArmada\Shipping\Data\CarrierOperationResult;
 use AIArmada\Shipping\Data\ShippingMethodData;
 use AIArmada\Shipping\Data\TrackingData;
 use AIArmada\Shipping\Data\TrackingEventData;
@@ -113,18 +113,14 @@ class ZoneBasedShippingDriver implements ShippingDriverInterface
             ->values();
     }
 
-    public function createShipment(ShipmentData $data): ShipmentResultData
+    public function createShipment(ShipmentData $data): CarrierOperationResult
     {
-        return new ShipmentResultData(
-            success: true,
-            trackingNumber: 'ZONE-' . mb_strtoupper(uniqid()),
-            requiresManualFulfillment: true,
-        );
+        return CarrierOperationResult::succeeded(trackingNumber: 'ZONE-' . mb_strtoupper(uniqid()));
     }
 
-    public function cancelShipment(string $trackingNumber): bool
+    public function cancelShipment(string $trackingNumber): CarrierOperationResult
     {
-        return true;
+        return CarrierOperationResult::succeeded();
     }
 
     /**

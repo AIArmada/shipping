@@ -20,7 +20,7 @@ use AIArmada\Shipping\Data\LabelData;
 use AIArmada\Shipping\Data\PackageData;
 use AIArmada\Shipping\Data\RateQuoteData;
 use AIArmada\Shipping\Data\ShipmentData;
-use AIArmada\Shipping\Data\ShipmentResultData;
+use AIArmada\Shipping\Data\CarrierOperationResult;
 use AIArmada\Shipping\Data\TrackingData;
 use AIArmada\Shipping\Enums\DriverCapability;
 use Illuminate\Support\Collection;
@@ -63,7 +63,7 @@ interface ShippingDriverInterface
     /**
      * Create a shipment with the carrier.
      */
-    public function createShipment(ShipmentData $shipment): ShipmentResultData;
+    public function createShipment(ShipmentData $data): CarrierOperationResult;
 
     /**
      * Track a shipment.
@@ -102,7 +102,7 @@ use AIArmada\Shipping\Data\LabelData;
 use AIArmada\Shipping\Data\PackageData;
 use AIArmada\Shipping\Data\RateQuoteData;
 use AIArmada\Shipping\Data\ShipmentData;
-use AIArmada\Shipping\Data\ShipmentResultData;
+use AIArmada\Shipping\Data\CarrierOperationResult;
 use AIArmada\Shipping\Data\TrackingData;
 use AIArmada\Shipping\Data\TrackingEventData;
 use AIArmada\Shipping\Enums\DriverCapability;
@@ -192,9 +192,9 @@ class JntShippingDriver implements ShippingDriverInterface
         });
     }
 
-    public function createShipment(ShipmentData $shipment): ShipmentResultData
+    public function createShipment(ShipmentData $shipment): CarrierOperationResult
     {
-        return $this->retry->execute(function () use ($shipment): ShipmentResultData {
+        return $this->retry->execute(function () use ($shipment): CarrierOperationResult {
             $response = $this->client->post('/shipments', [
                 'sender' => $this->formatAddress($shipment->origin),
                 'receiver' => $this->formatAddress($shipment->destination),
@@ -212,7 +212,7 @@ class JntShippingDriver implements ShippingDriverInterface
 
             $data = $response->json();
 
-            return ShipmentResultData::from([
+            return CarrierOperationResult::succeeded([
                 'success' => true,
                 'carrier_code' => 'jnt',
                 'tracking_number' => $data['tracking_number'],

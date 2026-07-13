@@ -10,7 +10,7 @@ use AIArmada\Shipping\Data\AddressData;
 use AIArmada\Shipping\Data\LabelData;
 use AIArmada\Shipping\Data\RateQuoteData;
 use AIArmada\Shipping\Data\ShipmentData;
-use AIArmada\Shipping\Data\ShipmentResultData;
+use AIArmada\Shipping\Data\CarrierOperationResult;
 use AIArmada\Shipping\Data\ShippingMethodData;
 use AIArmada\Shipping\Data\TrackingData;
 use AIArmada\Shipping\Data\TrackingEventData;
@@ -87,18 +87,17 @@ class NullShippingDriver implements ShippingDriverInterface
         ]);
     }
 
-    public function createShipment(ShipmentData $data): ShipmentResultData
+    public function createShipment(ShipmentData $data): CarrierOperationResult
     {
-        return new ShipmentResultData(
-            success: true,
+        return CarrierOperationResult::succeeded(
             trackingNumber: 'TEST-' . mb_strtoupper(Str::random(10)),
             carrierReference: 'NULL-' . mb_strtoupper(Str::random(8)),
         );
     }
 
-    public function cancelShipment(string $trackingNumber): bool
+    public function cancelShipment(string $trackingNumber): CarrierOperationResult
     {
-        return true;
+        return CarrierOperationResult::succeeded();
     }
 
     public function generateLabel(string $trackingNumber, array $options = []): LabelData

@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Services;
 
+use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Shipping\Contracts\ZoneResolutionStrategyInterface;
 use AIArmada\Shipping\Data\AddressData;
 use AIArmada\Shipping\Models\ShippingRate;
 use AIArmada\Shipping\Models\ShippingZone;
 use AIArmada\Shipping\Strategies\GeoZoneResolutionStrategy;
-use AIArmada\Shipping\Support\ShippingOwnerScope;
 use AIArmada\Shipping\Support\ZoneResolutionStrategyRegistry;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -169,7 +169,7 @@ class ShippingZoneResolver
      */
     private function applyOwnerScope(Builder $query, ?string $ownerId, ?string $ownerType): Builder
     {
-        if (! ShippingOwnerScope::isEnabled()) {
+        if (! config('shipping.features.owner.enabled', false)) {
             if ($ownerId !== null && $ownerType !== null) {
                 $query->where('owner_id', $ownerId)
                     ->where('owner_type', $ownerType);
@@ -184,21 +184,21 @@ class ShippingZoneResolver
             return $query->where(function (Builder $q) use ($ownerId, $ownerType): void {
                 $q->where('owner_id', $ownerId)->where('owner_type', $ownerType);
 
-                if (ShippingOwnerScope::includeGlobal()) {
+                if (config('shipping.features.owner.include_global', false)) {
                     $q->orWhereNull('owner_id');
                 }
             });
         }
 
         // No explicit owner supplied — fall back to ambient context (HTTP requests via OwnerContext).
-        return ShippingOwnerScope::applyToOwnedQuery($query);
+        return $query;
     }
 
     private function buildCacheKey(AddressData $address, ?string $ownerId, ?string $ownerType): string
     {
         // When owner mode is enabled and no explicit owner was passed, resolve from ambient context.
-        if (ShippingOwnerScope::isEnabled() && $ownerId === null && $ownerType === null) {
-            $owner = ShippingOwnerScope::resolveOwner();
+        if (config('shipping.features.owner.enabled', false) && $ownerId === null && $ownerType === null) {
+            $owner = OwnerContext::resolve();
 
             $ownerId = $owner?->getKey();
             $ownerType = $owner?->getMorphClass();
