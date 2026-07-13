@@ -8,6 +8,7 @@ use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
+use AIArmada\CommerceSupport\Traits\HasOwnerScopeKey;
 use AIArmada\Shipping\Data\AddressData;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -40,6 +41,7 @@ class ShippingZone extends Model implements Auditable
     use HasCommerceAudit;
     use HasOwner;
     use HasOwnerScopeConfig;
+    use HasOwnerScopeKey;
     use HasUuids;
     use LogsCommerceActivity;
 

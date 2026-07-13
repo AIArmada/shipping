@@ -16,6 +16,7 @@ return new class extends Migration
         Schema::create($tableName, function (Blueprint $table) use ($tableName, $jsonType): void {
             $table->uuid('id')->primary();
             $table->nullableUuidMorphs('owner');
+            $table->string('owner_scope', 64)->default('global');
 
             $table->string('name');
             $table->string('code', 50);
@@ -35,7 +36,7 @@ return new class extends Migration
 
             $table->timestampsTz();
 
-            $table->unique(['owner_type', 'owner_id', 'code'], $tableName . '_owner_code_unique');
+            $table->unique(['owner_scope', 'code'], $tableName . '_owner_code_unique');
             $table->index(['owner_id', 'owner_type', 'active'], $tableName . '_owner_active');
             $table->index('priority', $tableName . '_priority');
         });
