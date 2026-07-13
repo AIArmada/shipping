@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Actions;
 
-use AIArmada\Shipping\Contracts\ShippingDriverInterface;
 use AIArmada\Shipping\Data\CarrierOperationResult;
-use AIArmada\Shipping\Enums\ShipmentOperationStatus;
-use AIArmada\Shipping\Models\Shipment;
 use AIArmada\Shipping\Models\ShipmentOperation;
 use AIArmada\Shipping\ShippingManager;
 use Lorisleiva\Actions\Concerns\AsAction;
+use Throwable;
 
 final class ReconcileShipmentOperation
 {
@@ -36,7 +34,7 @@ final class ReconcileShipmentOperation
         }
 
         try {
-            $manager = app(\AIArmada\Shipping\ShippingManager::class);
+            $manager = app(ShippingManager::class);
             $driver = $manager->driver((string) $driverData);
 
             $tracking = $driver->track($trackingNumber);
@@ -49,7 +47,7 @@ final class ReconcileShipmentOperation
             }
 
             return CarrierOperationResult::unknown('Tracking status: ' . $tracking->status->value);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             return CarrierOperationResult::unknown($e->getMessage());
         }
     }

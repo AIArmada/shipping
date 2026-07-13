@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace AIArmada\Shipping\Contracts;
 
 use AIArmada\Shipping\Data\AddressData;
-use AIArmada\Shipping\Contracts\AddressValidationResult;
 use AIArmada\Shipping\Data\CarrierOperationResult;
 use AIArmada\Shipping\Data\LabelData;
 use AIArmada\Shipping\Data\PackageData;

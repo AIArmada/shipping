@@ -48,8 +48,12 @@ final class CreateShipment
                 'currency' => $data->currency ?? 'MYR',
                 'cod_amount' => $data->codAmount,
                 'metadata' => $data->metadata,
-                'owner_type' => $resolvedOwner?->getMorphClass() ?? $ownerType,
-                'owner_id' => $resolvedOwner?->getKey() ?? $ownerId,
+                'owner_type' => config('shipping.features.owner.enabled', false)
+                    ? ($resolvedOwner?->getMorphClass() ?? $ownerType)
+                    : $ownerType,
+                'owner_id' => config('shipping.features.owner.enabled', false)
+                    ? ($resolvedOwner?->getKey() ?? $ownerId)
+                    : $ownerId,
             ]);
 
             foreach ($data->items as $item) {
