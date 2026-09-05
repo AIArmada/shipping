@@ -12,7 +12,7 @@ return new class extends Migration
     {
         $tableName = config('shipping.database.tables.shipment_labels', 'shipment_labels');
 
-        Schema::create($tableName, function (Blueprint $table) use ($tableName): void {
+        commerce_schema_create_if_missing($tableName, function (Blueprint $table) use ($tableName): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('shipment_id');
 

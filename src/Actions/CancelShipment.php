@@ -57,7 +57,7 @@ final class CancelShipment
                             'error' => $result->error,
                         ]);
 
-                        return $shipment;
+                        throw new RuntimeException($result->error ?? 'The carrier rejected shipment cancellation.');
                     }
                 } catch (Throwable $e) {
                     $operation->complete(
@@ -69,7 +69,7 @@ final class CancelShipment
                         'error' => $e->getMessage(),
                     ]);
 
-                    return $shipment;
+                    throw $e;
                 }
             }
 

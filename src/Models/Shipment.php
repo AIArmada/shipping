@@ -70,8 +70,6 @@ class Shipment extends Model implements Auditable
     protected $keyType = 'string';
 
     protected $fillable = [
-        'owner_id',
-        'owner_type',
         'shippable_id',
         'shippable_type',
         'reference',
@@ -247,9 +245,10 @@ class Shipment extends Model implements Auditable
         });
 
         static::deleting(function (Shipment $shipment): void {
-            $shipment->items()->delete();
-            $shipment->events()->delete();
-            $shipment->labels()->delete();
+            $shipment->items()->each(fn (ShipmentItem $item): mixed => $item->delete());
+            $shipment->events()->each(fn (ShipmentEvent $event): mixed => $event->delete());
+            $shipment->labels()->each(fn (ShipmentLabel $label): mixed => $label->delete());
+            $shipment->operations()->each(fn (ShipmentOperation $operation): mixed => $operation->delete());
         });
     }
 

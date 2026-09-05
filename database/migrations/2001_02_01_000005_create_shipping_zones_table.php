@@ -13,7 +13,7 @@ return new class extends Migration
         $tableName = config('shipping.database.tables.shipping_zones', 'shipping_zones');
         $jsonType = (string) commerce_json_column_type('shipping', 'jsonb');
 
-        Schema::create($tableName, function (Blueprint $table) use ($tableName, $jsonType): void {
+        commerce_schema_create_if_missing($tableName, function (Blueprint $table) use ($tableName, $jsonType): void {
             $table->uuid('id')->primary();
             $table->nullableUuidMorphs('owner');
             $table->string('owner_scope', 64)->default('global');

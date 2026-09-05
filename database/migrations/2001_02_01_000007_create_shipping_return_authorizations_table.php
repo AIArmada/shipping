@@ -14,7 +14,7 @@ return new class extends Migration
         $itemsTable = config('shipping.database.tables.return_authorization_items', 'return_authorization_items');
         $jsonType = (string) commerce_json_column_type('shipping', 'jsonb');
 
-        Schema::create($tableName, function (Blueprint $table) use ($tableName, $jsonType): void {
+        commerce_schema_create_if_missing($tableName, function (Blueprint $table) use ($tableName, $jsonType): void {
             $table->uuid('id')->primary();
             $table->nullableUuidMorphs('owner');
 
@@ -44,7 +44,7 @@ return new class extends Migration
             $table->index(['owner_id', 'owner_type', 'status'], $tableName . '_owner_status');
         });
 
-        Schema::create($itemsTable, function (Blueprint $table) use ($itemsTable, $jsonType): void {
+        commerce_schema_create_if_missing($itemsTable, function (Blueprint $table) use ($itemsTable, $jsonType): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('return_authorization_id');
 

@@ -14,7 +14,7 @@ return new class extends Migration
         $shipmentsTable = config('shipping.database.tables.shipments', 'shipments');
         $jsonType = (string) commerce_json_column_type('shipping', 'jsonb');
 
-        Schema::create($tableName, function (Blueprint $table) use ($tableName, $jsonType): void {
+        commerce_schema_create_if_missing($tableName, function (Blueprint $table) use ($tableName, $jsonType): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('shipment_id');
 
