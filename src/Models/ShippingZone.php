@@ -10,6 +10,7 @@ use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeKey;
 use AIArmada\Shipping\Data\AddressData;
+use AIArmada\Shipping\Services\ShippingZoneResolver;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -104,9 +105,24 @@ class ShippingZone extends Model implements Auditable
 
     protected static function booted(): void
     {
+        static::saved(static function (): void {
+            self::clearResolverCache();
+        });
+
+        static::deleted(static function (): void {
+            self::clearResolverCache();
+        });
+
         static::deleting(function (ShippingZone $zone): void {
             $zone->rates()->delete();
         });
+    }
+
+    private static function clearResolverCache(): void
+    {
+        if (app()->bound(ShippingZoneResolver::class)) {
+            app(ShippingZoneResolver::class)->clearCache();
+        }
     }
 
     // ─────────────────────────────────────────────────────────────
