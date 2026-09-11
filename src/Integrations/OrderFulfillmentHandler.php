@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Integrations;
 
+use AIArmada\Addressing\Models\Address;
 use AIArmada\Inventory\Integrations\FulfillmentLocationService;
 use AIArmada\Inventory\Models\InventoryLocation;
 use AIArmada\Orders\Contracts\FulfillmentHandler;
@@ -67,7 +68,7 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
     public function createShipment(Order $order, array $shipmentData): array
     {
         try {
-            $shippingAddress = $order->shippingAddress;
+            $shippingAddress = $order->primaryAddress('shipping');
 
             if ($shippingAddress === null) {
                 return [
@@ -80,18 +81,7 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
 
             // Get origin address - try inventory-aware location first
             $originAddress = $this->getOriginAddressForOrder($order, $shipmentData);
-            $destinationAddress = AddressData::from([
-                'name' => mb_trim($shippingAddress->first_name . ' ' . $shippingAddress->last_name),
-                'company' => $shippingAddress->company,
-                'line1' => $shippingAddress->line1 ?? '',
-                'line2' => $shippingAddress->line2,
-                'city' => $shippingAddress->city,
-                'state' => $shippingAddress->state,
-                'postcode' => $shippingAddress->postcode ?? '',
-                'country' => $shippingAddress->country ?? 'MY',
-                'phone' => $shippingAddress->phone ?? '',
-                'email' => $shippingAddress->email,
-            ]);
+            $destinationAddress = $this->toShippingAddressData($shippingAddress, includeEmail: true);
 
             $items = $order->items->map(fn ($item) => ShipmentItemData::from([
                 'name' => $item->name,
@@ -148,21 +138,13 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
      */
     public function getRates(Order $order): array
     {
-        $shippingAddress = $order->shippingAddress;
+        $shippingAddress = $order->primaryAddress('shipping');
 
         if ($shippingAddress === null) {
             return [];
         }
 
-        $destination = AddressData::from([
-            'name' => mb_trim($shippingAddress->first_name . ' ' . $shippingAddress->last_name),
-            'line1' => $shippingAddress->line1 ?? '',
-            'city' => $shippingAddress->city,
-            'state' => $shippingAddress->state,
-            'postcode' => $shippingAddress->postcode ?? '',
-            'country' => $shippingAddress->country ?? 'MY',
-            'phone' => $shippingAddress->phone ?? '',
-        ]);
+        $destination = $this->toShippingAddressData($shippingAddress);
 
         $packages = [
             PackageData::from([
@@ -201,6 +183,36 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
         }
 
         return $rates;
+    }
+
+    private function toShippingAddressData(Address $address, bool $includeEmail = false): AddressData
+    {
+        $metadata = $address->metadata;
+        $contact = is_array($metadata)
+            && is_array($metadata[Order::ADDRESS_CONTACT_METADATA_KEY] ?? null)
+            ? $metadata[Order::ADDRESS_CONTACT_METADATA_KEY]
+            : [];
+
+        $data = [
+            'name' => mb_trim(implode(' ', array_filter([
+                $contact['first_name'] ?? null,
+                $contact['last_name'] ?? null,
+            ], static fn (mixed $value): bool => is_string($value) && $value !== ''))),
+            'company' => is_string($contact['company'] ?? null) ? $contact['company'] : null,
+            'line1' => $address->line1 ?? '',
+            'line2' => $address->line2,
+            'city' => $address->city,
+            'state' => $address->state,
+            'postcode' => $address->postcode ?? '',
+            'country' => $address->country ?? $address->country_code ?? 'MY',
+            'phone' => is_string($contact['phone'] ?? null) ? $contact['phone'] : '',
+        ];
+
+        if ($includeEmail) {
+            $data['email'] = is_string($contact['email'] ?? null) ? $contact['email'] : null;
+        }
+
+        return AddressData::from($data);
     }
 
     /**
