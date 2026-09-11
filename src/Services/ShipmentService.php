@@ -7,10 +7,10 @@ namespace AIArmada\Shipping\Services;
 use AIArmada\Shipping\Actions\CancelShipment;
 use AIArmada\Shipping\Actions\CreateShipment;
 use AIArmada\Shipping\Actions\GenerateLabel;
+use AIArmada\Shipping\Actions\RecalculateShipmentWeight;
 use AIArmada\Shipping\Actions\ShipShipment;
 use AIArmada\Shipping\Actions\UpdateShipmentStatus;
 use AIArmada\Shipping\Data\ShipmentData;
-use AIArmada\Shipping\Enums\ShipmentStatus as ShipmentStatusEnum;
 use AIArmada\Shipping\Exceptions\InvalidStatusTransitionException;
 use AIArmada\Shipping\Models\Shipment;
 use AIArmada\Shipping\Models\ShipmentLabel;
@@ -37,7 +37,7 @@ class ShipmentService
 
     public function updateStatus(
         Shipment $shipment,
-        ShipmentStatusState | ShipmentStatusEnum | string $newStatus,
+        ShipmentStatusState | string $newStatus,
         ?string $note = null,
         ?array $eventData = null
     ): Shipment {
@@ -65,10 +65,6 @@ class ShipmentService
 
     public function recalculateWeight(Shipment $shipment): Shipment
     {
-        $totalWeight = $shipment->items->sum(fn ($item) => $item->weight * $item->quantity);
-
-        $shipment->update(['total_weight' => $totalWeight]);
-
-        return $shipment->refresh();
+        return RecalculateShipmentWeight::run($shipment);
     }
 }

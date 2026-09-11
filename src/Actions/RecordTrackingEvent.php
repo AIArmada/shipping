@@ -21,6 +21,7 @@ use AIArmada\Shipping\States\OutForDelivery;
 use AIArmada\Shipping\States\ReturnToSender;
 use AIArmada\Shipping\States\ShipmentStatus as ShipmentStatusState;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 final class RecordTrackingEvent
@@ -34,38 +35,40 @@ final class RecordTrackingEvent
 
     public function handle(Shipment $shipment, TrackingEventData $eventData, ?StatusMapperInterface $mapper = null): ?ShipmentEvent
     {
-        $exists = $shipment->events()
-            ->where('carrier_event_code', $eventData->code)
-            ->where('occurred_at', $eventData->timestamp)
-            ->exists();
+        return DB::transaction(function () use ($shipment, $eventData, $mapper): ?ShipmentEvent {
+            $exists = $shipment->events()
+                ->where('carrier_event_code', $eventData->code)
+                ->where('occurred_at', $eventData->timestamp)
+                ->exists();
 
-        if ($exists) {
-            return null;
-        }
+            if ($exists) {
+                return null;
+            }
 
-        $resolvedMapper = $mapper ?? $this->statusMapper
-            ?? $this->shippingManager->getStatusMapper($shipment->carrier_code);
+            $resolvedMapper = $mapper ?? $this->statusMapper
+                ?? $this->shippingManager->getStatusMapper($shipment->carrier_code);
 
-        $normalizedStatus = $eventData->normalizedStatus
-            ?? ($resolvedMapper?->map($eventData->code) ?? TrackingStatus::InTransit);
+            $normalizedStatus = $eventData->normalizedStatus
+                ?? ($resolvedMapper?->map($eventData->code) ?? TrackingStatus::InTransit);
 
-        $event = $shipment->events()->create([
-            'carrier_event_code' => $eventData->code,
-            'normalized_status' => $normalizedStatus,
-            'description' => $eventData->description,
-            'location' => $eventData->location,
-            'city' => $eventData->city,
-            'state' => $eventData->state,
-            'country' => $eventData->country,
-            'occurred_at' => $eventData->timestamp,
-            'raw_data' => $eventData->raw,
-        ]);
+            $event = $shipment->events()->create([
+                'carrier_event_code' => $eventData->code,
+                'normalized_status' => $normalizedStatus,
+                'description' => $eventData->description,
+                'location' => $eventData->location,
+                'city' => $eventData->city,
+                'state' => $eventData->state,
+                'country' => $eventData->country,
+                'occurred_at' => $eventData->timestamp,
+                'raw_data' => $eventData->raw,
+            ]);
 
-        $this->updateShipmentStatus($shipment, $normalizedStatus, CarbonImmutable::make($event->occurred_at));
+            $this->updateShipmentStatus($shipment, $normalizedStatus, CarbonImmutable::make($event->occurred_at));
 
-        event(new TrackingUpdated($shipment, collect([$event])));
+            event(new TrackingUpdated($shipment, collect([$event])));
 
-        return $event;
+            return $event;
+        });
     }
 
     protected function updateShipmentStatus(Shipment $shipment, TrackingStatus $trackingStatus, CarbonImmutable $occurredAt): void
@@ -81,7 +84,7 @@ final class RecordTrackingEvent
         }
 
         $oldStatus = $shipment->status;
-        $shipment->update(['status' => $statusClass]);
+        $shipment->status->transitionTo($statusClass);
 
         if ($shipment->status->equals(Delivered::class)) {
             $shipment->update(['delivered_at' => $occurredAt]);

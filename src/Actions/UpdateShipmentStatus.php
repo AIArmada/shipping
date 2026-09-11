@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Actions;
 
-use AIArmada\Shipping\Enums\ShipmentStatus as ShipmentStatusEnum;
 use AIArmada\Shipping\Exceptions\InvalidStatusTransitionException;
 use AIArmada\Shipping\Models\Shipment;
 use AIArmada\Shipping\States\Delivered;
@@ -28,7 +27,7 @@ final class UpdateShipmentStatus
      */
     public function handle(
         Shipment $shipment,
-        ShipmentStatusState | ShipmentStatusEnum | string $status,
+        ShipmentStatusState | string $status,
         ?string $description = null,
         ?string $location = null,
         array $metadata = []

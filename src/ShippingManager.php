@@ -42,11 +42,19 @@ class ShippingManager
     protected array $statusMappers = [];
 
     /**
-     * The resolved driver instances.
+     * Driver instances resolved during the current application scope.
+     *
+     * The manager is request-scoped by the service provider, so this cache is
+     * safe for Octane and avoids rebuilding drivers within one request.
      *
      * @var array<string, ShippingDriverInterface>
      */
     protected array $drivers = [];
+
+    /**
+     * Request-scoped default driver override.
+     */
+    protected ?string $defaultDriverOverride = null;
 
     public function __construct(Container $container)
     {
@@ -70,12 +78,6 @@ class ShippingManager
     {
         $driver ??= $this->getDefaultDriver();
 
-        // The zone driver injects ShippingZoneResolver which is scoped (Octane-safe).
-        // Do not cache it in the singleton driver map so each request gets a fresh resolver.
-        if ($driver === 'zone') {
-            return $this->createDriver($driver);
-        }
-
         if (! isset($this->drivers[$driver])) {
             $this->drivers[$driver] = $this->createDriver($driver);
         }
@@ -88,7 +90,8 @@ class ShippingManager
      */
     public function getDefaultDriver(): string
     {
-        return $this->container->get('config')->get('shipping.drivers.default', 'manual');
+        return $this->defaultDriverOverride
+            ?? $this->container->get('config')->get('shipping.drivers.default', 'manual');
     }
 
     /**
@@ -96,7 +99,7 @@ class ShippingManager
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->container->get('config')->set('shipping.drivers.default', $name);
+        $this->defaultDriverOverride = $name;
     }
 
     /**
@@ -137,6 +140,10 @@ class ShippingManager
         $configuredDrivers = array_keys(
             $this->container->get('config')->get('shipping.drivers', [])
         );
+        $configuredDrivers = array_values(array_filter(
+            $configuredDrivers,
+            static fn (string $driver): bool => $driver !== 'default',
+        ));
 
         $customDrivers = array_keys($this->customCreators);
 
@@ -150,10 +157,17 @@ class ShippingManager
      */
     public function getDriversForDestination(AddressData $destination): Collection
     {
-        return collect($this->getAvailableDrivers())
-            ->map(fn (string $name) => $this->driver($name))
-            ->filter(fn (ShippingDriverInterface $driver) => $driver->servicesDestination($destination))
-            ->values();
+        $drivers = collect();
+
+        foreach ($this->getAvailableDrivers() as $name) {
+            $driver = $this->driver($name);
+
+            if ($driver->servicesDestination($destination)) {
+                $drivers->push($driver);
+            }
+        }
+
+        return $drivers;
     }
 
     /**

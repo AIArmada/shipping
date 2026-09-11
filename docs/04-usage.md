@@ -189,6 +189,7 @@ echo $result->labelUrl;       // URL to label PDF
 
 ```php
 use AIArmada\Shipping\Models\Shipment;
+use AIArmada\Shipping\States\Draft;
 use AIArmada\Orders\Models\Order;
 
 $order = Order::find($orderId);
@@ -200,7 +201,7 @@ $shipment = Shipment::create([
     'service_code' => 'express',
     'origin' => [...],
     'destination' => [...],
-    'status' => ShipmentStatus::Draft,
+    'status' => Draft::class,
     'total_weight' => 1500,
 ]);
 ```
@@ -512,8 +513,19 @@ Draft → Pending → Shipped → InTransit → OutForDelivery → Delivered
 Check status capabilities:
 
 ```php
-$shipment->status->canTransitionTo(ShipmentStatus::Shipped);
+use AIArmada\Shipping\States\Shipped;
+use AIArmada\Shipping\States\ShipmentStatus;
+
+$shipment->status->canTransitionTo(Shipped::class);
 $shipment->status->isCancellable();
 $shipment->status->isTerminal();
 $shipment->status->isDelivered();
 ```
+
+Shipment statuses are Spatie model states. Use the state class (for example,
+`Shipped::class`) when persisting or comparing a status; there is no parallel
+status enum.
+
+Shipment `id` is the canonical internal UUID used for relations and lookups.
+The separate `ulid` is a unique external/carrier-facing identifier and should
+not replace the UUID in new internal code.

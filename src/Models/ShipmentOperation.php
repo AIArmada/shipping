@@ -10,6 +10,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use InvalidArgumentException;
 
 final class ShipmentOperation extends Model
 {
@@ -48,10 +49,14 @@ final class ShipmentOperation extends Model
         return $this->belongsTo(Shipment::class);
     }
 
-    public static function recordStart(string $shipmentId, string $operationType, ?string $reference = null): self
+    public static function recordStart(Shipment $shipment, string $operationType, ?string $reference = null): self
     {
+        if (! $shipment->exists) {
+            throw new InvalidArgumentException('Shipment must be persisted before recording an operation.');
+        }
+
         $existing = self::query()
-            ->where('shipment_id', $shipmentId)
+            ->where('shipment_id', $shipment->getKey())
             ->where('operation_type', $operationType)
             ->where('status', ShipmentOperationStatus::Pending->value)
             ->first();
@@ -61,7 +66,7 @@ final class ShipmentOperation extends Model
         }
 
         return self::create([
-            'shipment_id' => $shipmentId,
+            'shipment_id' => $shipment->getKey(),
             'operation_type' => $operationType,
             'status' => ShipmentOperationStatus::Pending->value,
             'reference' => $reference,

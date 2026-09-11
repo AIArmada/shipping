@@ -146,10 +146,15 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
         ];
 
         $rates = [];
-        $drivers = $this->shippingManager->getDriversForDestination($destination);
 
-        foreach ($drivers as $driver) {
+        foreach ($this->shippingManager->getAvailableDrivers() as $carrierCode) {
             try {
+                $driver = $this->shippingManager->driver($carrierCode);
+
+                if (! $driver->servicesDestination($destination)) {
+                    continue;
+                }
+
                 $driverRates = $driver->getRates(
                     $this->getOriginAddress(),
                     $destination,

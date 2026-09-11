@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace AIArmada\Shipping\Services;
 
 use AIArmada\CommerceSupport\Support\OwnerContext;
-use AIArmada\CommerceSupport\Support\OwnerQuery;
-use AIArmada\CommerceSupport\Support\OwnerScope;
 use AIArmada\Shipping\Contracts\ZoneResolutionStrategyInterface;
 use AIArmada\Shipping\Data\AddressData;
 use AIArmada\Shipping\Models\ShippingRate;
@@ -14,6 +12,7 @@ use AIArmada\Shipping\Models\ShippingZone;
 use AIArmada\Shipping\Strategies\GeoZoneResolutionStrategy;
 use AIArmada\Shipping\Support\ZoneResolutionStrategyRegistry;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
@@ -175,38 +174,27 @@ class ShippingZoneResolver
         $this->assertCompleteOwnerTuple($ownerId, $ownerType);
 
         if (! config('shipping.features.owner.enabled', false)) {
-            if ($ownerId !== null && $ownerType !== null) {
-                $query->where('owner_id', $ownerId)
-                    ->where('owner_type', $ownerType);
-            }
-
             return $query;
         }
 
-        if ($ownerId !== null && $ownerType !== null) {
-            $owner = OwnerContext::fromTypeAndId($ownerType, $ownerId);
-
-            return OwnerQuery::applyToEloquentBuilder(
-                $query->withoutGlobalScope(OwnerScope::class),
-                $owner,
-                (bool) config('shipping.features.owner.include_global', false),
-            );
-        }
-
-        // No explicit owner supplied — fall back to ambient context (HTTP requests via OwnerContext).
-        return $query;
+        return $query->forOwner(
+            $this->resolveOwner($ownerId, $ownerType),
+            includeGlobal: (bool) config('shipping.features.owner.include_global', false),
+        );
     }
 
     private function buildCacheKey(AddressData $address, ?string $ownerId, ?string $ownerType): string
     {
         $this->assertCompleteOwnerTuple($ownerId, $ownerType);
 
-        // When owner mode is enabled and no explicit owner was passed, resolve from ambient context.
-        if (config('shipping.features.owner.enabled', false) && $ownerId === null && $ownerType === null) {
-            $owner = OwnerContext::resolve();
+        if (config('shipping.features.owner.enabled', false)) {
+            $owner = $this->resolveOwner($ownerId, $ownerType);
 
             $ownerId = $owner?->getKey();
             $ownerType = $owner?->getMorphClass();
+        } else {
+            $ownerId = null;
+            $ownerType = null;
         }
 
         return md5(serialize([
@@ -224,5 +212,23 @@ class ShippingZoneResolver
         if (($ownerId === null) !== ($ownerType === null)) {
             throw new InvalidArgumentException('Owner id and owner type must be provided together.');
         }
+    }
+
+    private function resolveOwner(?string $ownerId, ?string $ownerType): ?Model
+    {
+        $this->assertCompleteOwnerTuple($ownerId, $ownerType);
+
+        if ($ownerId !== null && $ownerType !== null) {
+            return OwnerContext::fromTypeAndId($ownerType, $ownerId);
+        }
+
+        $owner = OwnerContext::resolve();
+
+        OwnerContext::assertResolvedOrExplicitGlobal(
+            $owner,
+            'Shipping zone resolution requires an owner context or explicit global context.',
+        );
+
+        return $owner;
     }
 }

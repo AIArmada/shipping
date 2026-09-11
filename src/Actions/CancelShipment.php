@@ -40,7 +40,7 @@ final class CancelShipment
             $driver = $this->shippingManager->driver($shipment->carrier_code);
 
             $operation = ShipmentOperation::recordStart(
-                (string) $shipment->getKey(),
+                $shipment,
                 'cancel',
                 $shipment->carrier_reference,
             );

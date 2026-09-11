@@ -16,6 +16,7 @@ use AIArmada\Shipping\States\ReturnAuthorizationState\RmaCompleted;
 use AIArmada\Shipping\States\ReturnAuthorizationState\RmaPending;
 use AIArmada\Shipping\States\ReturnAuthorizationState\RmaReceived;
 use Carbon\CarbonImmutable;
+use DomainException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -23,6 +24,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use OwenIt\Auditing\Contracts\Auditable;
 use Spatie\ModelStates\HasStates;
@@ -204,8 +206,13 @@ class ReturnAuthorization extends Model implements Auditable
         });
 
         static::deleting(function (ReturnAuthorization $rma): void {
-            $rma->returnShipment?->delete();
-            $rma->items()->delete();
+            if ($rma->returnShipment()->exists()) {
+                throw new DomainException('A return authorization with a return shipment cannot be deleted.');
+            }
+
+            DB::transaction(function () use ($rma): void {
+                $rma->items()->delete();
+            });
         });
     }
 

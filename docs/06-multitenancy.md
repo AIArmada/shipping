@@ -83,6 +83,7 @@ $zones = ShippingZone::forOwner($owner, includeGlobal: true)->get();
 ```php
 use AIArmada\Shipping\Models\Shipment;
 use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\Shipping\States\Shipped;
 
 // Automatically scoped (global scope applied)
 $shipments = Shipment::query()->get();
@@ -117,7 +118,7 @@ class GenerateShippingManifestJob implements ShouldQueue
 
         OwnerContext::withOwner($owner, function (): void {
             $shipments = Shipment::query()
-                ->where('status', ShipmentStatus::Shipped)
+                ->where('status', Shipped::class)
                 ->get();
 
             // Process manifest...

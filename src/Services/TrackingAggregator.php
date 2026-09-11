@@ -127,7 +127,10 @@ class TrackingAggregator
         $query = Shipment::query();
 
         if (config('shipping.features.owner.enabled', false)) {
-            $query->forOwner($owner, includeGlobal: $owner === null);
+            $query->forOwner(
+                $owner,
+                includeGlobal: (bool) config('shipping.features.owner.include_global', false),
+            );
         }
 
         return $query
@@ -207,7 +210,7 @@ class TrackingAggregator
 
         if (! $shipment->status->equals($statusClass)) {
             $oldStatus = $shipment->status;
-            $shipment->update(['status' => $statusClass]);
+            $shipment->status->transitionTo($statusClass);
 
             if ($shipment->status->equals(Delivered::class)) {
                 $shipment->update(['delivered_at' => $latestEvent->occurred_at]);

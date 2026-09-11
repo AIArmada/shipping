@@ -42,7 +42,7 @@ final class ShipShipment
             $driver = $this->shippingManager->driver($shipment->carrier_code);
 
             $operation = ShipmentOperation::recordStart(
-                (string) $shipment->getKey(),
+                $shipment,
                 'create',
                 $shipment->reference,
             );

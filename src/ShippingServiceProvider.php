@@ -40,7 +40,7 @@ final class ShippingServiceProvider extends PackageServiceProvider
 
     public function packageRegistered(): void
     {
-        $this->app->singleton(ShippingManager::class, function ($app) {
+        $this->app->scoped(ShippingManager::class, function ($app): ShippingManager {
             return new ShippingManager($app);
         });
 
@@ -69,7 +69,7 @@ final class ShippingServiceProvider extends PackageServiceProvider
         // Scoped so per-request memoization cache never bleeds across Octane requests
         $this->app->scoped(ShippingZoneResolver::class);
 
-        $this->app->singleton(RateShoppingEngine::class, function ($app): RateShoppingEngine {
+        $this->app->scoped(RateShoppingEngine::class, function ($app): RateShoppingEngine {
             /** @var array<string, mixed> $config */
             $config = (array) $app->make('config')->get('shipping.rate_shopping', []);
 

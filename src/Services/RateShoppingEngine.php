@@ -176,14 +176,11 @@ class RateShoppingEngine
         array $packages,
         array $options = []
     ): Collection {
-        $drivers = $this->shippingManager->getDriversForDestination($destination);
+        $carrierCodes = $this->shippingManager->getAvailableDrivers();
 
-        if ($drivers->isEmpty()) {
+        if ($carrierCodes === []) {
             return collect();
         }
-
-        // Extract carrier codes (primitives are safely serializable)
-        $carrierCodes = $drivers->map(fn ($driver) => $driver->getCarrierCode())->all();
 
         // If options are not concurrency-safe (contain objects/resources), fall back to sequential calls.
         if (! $this->isConcurrencySafe($options)) {
@@ -215,6 +212,10 @@ class RateShoppingEngine
                             fn (array $package) => PackageData::from($package),
                             $packagesPayload
                         );
+
+                        if (! $driver->servicesDestination($destination)) {
+                            return collect();
+                        }
 
                         return $driver->getRates($origin, $destination, $packages, $options);
                     } catch (Throwable $e) {

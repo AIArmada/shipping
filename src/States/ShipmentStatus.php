@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\States;
 
-use AIArmada\Shipping\Enums\ShipmentStatus as ShipmentStatusEnum;
 use AIArmada\Shipping\Enums\TrackingStatus;
 use AIArmada\Shipping\Models\Shipment;
 use Illuminate\Database\Eloquent\Model;
@@ -66,14 +65,10 @@ abstract class ShipmentStatus extends State
         };
     }
 
-    public static function normalize(ShipmentStatusEnum | ShipmentStatus | string $status): string
+    public static function normalize(ShipmentStatus | string $status): string
     {
         if ($status instanceof ShipmentStatus) {
             return $status->getValue();
-        }
-
-        if ($status instanceof ShipmentStatusEnum) {
-            return $status->value;
         }
 
         if (class_exists($status) && is_subclass_of($status, ShipmentStatus::class)) {
@@ -101,7 +96,7 @@ abstract class ShipmentStatus extends State
         return $options;
     }
 
-    public static function fromString(ShipmentStatusEnum | ShipmentStatus | string $status, ?Model $model = null): ShipmentStatus
+    public static function fromString(ShipmentStatus | string $status, ?Model $model = null): ShipmentStatus
     {
         if ($status instanceof ShipmentStatus) {
             return $status;
@@ -116,14 +111,10 @@ abstract class ShipmentStatus extends State
     /**
      * @return class-string<ShipmentStatus>
      */
-    public static function resolveStateClassFor(ShipmentStatusEnum | ShipmentStatus | string $status, ?Model $model = null): string
+    public static function resolveStateClassFor(ShipmentStatus | string $status, ?Model $model = null): string
     {
         if ($status instanceof ShipmentStatus) {
             return $status::class;
-        }
-
-        if ($status instanceof ShipmentStatusEnum) {
-            $status = $status->value;
         }
 
         if (class_exists($status) && is_subclass_of($status, ShipmentStatus::class)) {

@@ -9,7 +9,6 @@ use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\FormatsMoney;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
-use AIArmada\Shipping\Enums\ShipmentStatus as ShipmentStatusEnum;
 use AIArmada\Shipping\States\ShipmentStatus;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
@@ -17,6 +16,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use OwenIt\Auditing\Contracts\Auditable;
 use Spatie\ModelStates\HasStates;
@@ -190,7 +190,7 @@ class Shipment extends Model implements Auditable
         return $this->status->isTerminal();
     }
 
-    public function canTransitionTo(string | ShipmentStatus | ShipmentStatusEnum $newStatus): bool
+    public function canTransitionTo(string | ShipmentStatus $newStatus): bool
     {
         return $this->status->canTransitionTo(ShipmentStatus::normalize($newStatus));
     }
@@ -247,10 +247,20 @@ class Shipment extends Model implements Auditable
         });
 
         static::deleting(function (Shipment $shipment): void {
-            $shipment->items()->each(fn (ShipmentItem $item): mixed => $item->delete());
-            $shipment->events()->each(fn (ShipmentEvent $event): mixed => $event->delete());
-            $shipment->labels()->each(fn (ShipmentLabel $label): mixed => $label->delete());
-            $shipment->operations()->each(fn (ShipmentOperation $operation): mixed => $operation->delete());
+            DB::transaction(function () use ($shipment): void {
+                foreach ([
+                    ShipmentItem::class,
+                    ShipmentEvent::class,
+                    ShipmentLabel::class,
+                    ShipmentOperation::class,
+                ] as $relatedClass) {
+                    $relatedClass::query()
+                        ->where('shipment_id', $shipment->getKey())
+                        ->chunkById(500, function (Collection $children) use ($relatedClass): void {
+                            $relatedClass::query()->whereKey($children->modelKeys())->delete();
+                        });
+                }
+            });
         });
     }
 
