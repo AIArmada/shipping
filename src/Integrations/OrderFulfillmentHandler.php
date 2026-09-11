@@ -38,6 +38,32 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
     /**
      * {@inheritDoc}
      */
+    public function availableCarriers(): array
+    {
+        $carriers = [];
+
+        foreach ($this->shippingManager->getAvailableDrivers() as $driverName) {
+            try {
+                $driver = $this->shippingManager->driver($driverName);
+                $code = mb_trim($driver->getCarrierCode());
+                $name = mb_trim($driver->getCarrierName());
+
+                if ($code === '') {
+                    continue;
+                }
+
+                $carriers[$code] = $name !== '' ? $name : $code;
+            } catch (Throwable $exception) {
+                report($exception);
+            }
+        }
+
+        return $carriers;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     public function createShipment(Order $order, array $shipmentData): array
     {
         try {
