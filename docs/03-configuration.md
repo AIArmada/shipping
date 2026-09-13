@@ -63,8 +63,18 @@ When enabled, shipments are automatically scoped to the current tenant using the
 ## Default Driver
 
 ```php
-// Default shipping driver
-'default' => env('SHIPPING_DRIVER', 'manual'),
+// Default shipping driver (note the `drivers.` prefix)
+'drivers' => [
+    'default' => env('SHIPPING_DRIVER', 'manual'),
+],
+```
+
+The instance-level override is request-scoped and Octane-safe:
+
+```php
+use AIArmada\Shipping\Facades\Shipping;
+
+Shipping::setDefaultDriver('flat_rate');
 ```
 
 ## Drivers
@@ -131,6 +141,17 @@ Shipping::extend('jnt', function ($container) {
 ```
 
 The strategy key must identify a strategy registered in `ZoneResolutionStrategyRegistry`; `geo` is registered by default.
+
+Zone candidates are owner-scoped via `forOwner()` with `shipping.features.owner.include_global` when owner mode is enabled:
+
+```php
+use AIArmada\Shipping\Services\ShippingZoneResolver;
+use AIArmada\Shipping\Data\AddressData;
+
+$zone = app(ShippingZoneResolver::class)->resolve(
+    AddressData::from(['country' => 'MY', 'state' => 'Selangor', 'postcode' => '47800']),
+);
+```
 
 ## Rate Shopping
 
@@ -262,9 +283,8 @@ return [
         ],
     ],
 
-    'default' => 'manual',
-
     'drivers' => [
+        'default' => 'manual',
         'manual' => [
             'name' => 'Manual',
             'base_rate' => 1000,
