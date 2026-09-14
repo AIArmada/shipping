@@ -10,6 +10,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 final class ShipmentOperation extends Model
@@ -55,23 +56,30 @@ final class ShipmentOperation extends Model
             throw new InvalidArgumentException('Shipment must be persisted before recording an operation.');
         }
 
-        $existing = self::query()
-            ->where('shipment_id', $shipment->getKey())
-            ->where('operation_type', $operationType)
-            ->where('status', ShipmentOperationStatus::Pending->value)
-            ->first();
+        // Check-then-insert runs inside a locked transaction so concurrent
+        // callers serialize instead of double-creating pending rows. A unique
+        // index is intentionally not used: repeat operations legitimately
+        // produce multiple completed rows per (shipment, operation type).
+        return DB::transaction(function () use ($shipment, $operationType, $reference): self {
+            $existing = self::query()
+                ->where('shipment_id', $shipment->getKey())
+                ->where('operation_type', $operationType)
+                ->where('status', ShipmentOperationStatus::Pending->value)
+                ->lockForUpdate()
+                ->first();
 
-        if ($existing !== null) {
-            return $existing;
-        }
+            if ($existing !== null) {
+                return $existing;
+            }
 
-        return self::create([
-            'shipment_id' => $shipment->getKey(),
-            'operation_type' => $operationType,
-            'status' => ShipmentOperationStatus::Pending->value,
-            'reference' => $reference,
-            'operation_started_at' => CarbonImmutable::now(),
-        ]);
+            return self::create([
+                'shipment_id' => $shipment->getKey(),
+                'operation_type' => $operationType,
+                'status' => ShipmentOperationStatus::Pending->value,
+                'reference' => $reference,
+                'operation_started_at' => CarbonImmutable::now(),
+            ]);
+        });
     }
 
     public function complete(CarrierOperationResult $result): void

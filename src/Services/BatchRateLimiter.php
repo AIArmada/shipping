@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Services;
 
+use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\CommerceSupport\Support\OwnerScopeKey;
 use Closure;
 use Illuminate\Support\Facades\RateLimiter;
 use RuntimeException;
@@ -40,6 +42,14 @@ final class BatchRateLimiter
      * Rate limiter key prefix.
      */
     protected string $keyPrefix = 'shipping';
+
+    /**
+     * Maximum seconds to wait for the rate limit to clear.
+     *
+     * Bulk carrier syncs should run off-request (console, queue); waiting here
+     * blocks the caller, so keep this small on request paths.
+     */
+    protected int $maxWaitSeconds = 30;
 
     /**
      * Create a new instance.
@@ -154,6 +164,16 @@ final class BatchRateLimiter
     }
 
     /**
+     * Set the maximum seconds to wait for the rate limit to clear.
+     */
+    public function maxWaitSeconds(int $seconds): static
+    {
+        $this->maxWaitSeconds = max(0, $seconds);
+
+        return $this;
+    }
+
+    /**
      * Process a batch of items with rate limiting.
      *
      * @template TKey of array-key
@@ -190,13 +210,12 @@ final class BatchRateLimiter
      */
     protected function waitForRateLimit(string $key): void
     {
-        $maxWaitSeconds = 30;
         $waited = 0;
 
         while (RateLimiter::tooManyAttempts($key, $this->maxAttempts)) {
             $retryAfter = RateLimiter::availableIn($key);
 
-            if ($waited + $retryAfter > $maxWaitSeconds) {
+            if ($waited + $retryAfter > $this->maxWaitSeconds) {
                 throw new RuntimeException(
                     "Rate limit exceeded. Would need to wait {$retryAfter} seconds."
                 );
@@ -211,6 +230,9 @@ final class BatchRateLimiter
 
     /**
      * Build the rate limiter key.
+     *
+     * The owner scope segment keeps one tenant's bulk sync from consuming
+     * another tenant's carrier rate budget.
      */
     protected function buildKey(?string $operation): string
     {
@@ -220,6 +242,17 @@ final class BatchRateLimiter
             $parts[] = $operation;
         }
 
+        $parts[] = $this->ownerSegment();
+
         return implode(':', $parts);
+    }
+
+    protected function ownerSegment(): string
+    {
+        if (! (bool) config('shipping.features.owner.enabled', false)) {
+            return OwnerScopeKey::GLOBAL;
+        }
+
+        return OwnerScopeKey::forOwner(OwnerContext::resolve());
     }
 }

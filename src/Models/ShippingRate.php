@@ -190,7 +190,7 @@ class ShippingRate extends Model implements Auditable
                 'max_order_total' => $cartTotal <= $value,
                 'min_items' => $itemCount >= $value,
                 'max_items' => $itemCount <= $value,
-                default => true,
+                default => false,
             };
 
             if (! $passes) {
@@ -291,7 +291,8 @@ class ShippingRate extends Model implements Auditable
 
     protected function calculatePercentageRate(int $cartTotal): int
     {
-        return (int) (($cartTotal * $this->per_unit_rate) / 10000); // per_unit_rate is in basis points
+        // per_unit_rate is in basis points; round half-up like cart money math.
+        return (int) round(($cartTotal * $this->per_unit_rate) / 10000);
     }
 
     protected function calculateTableRate(int $weightGrams): int

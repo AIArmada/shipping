@@ -36,7 +36,9 @@ final class CreateShipment
                 }
             }
 
-            $shipment = Shipment::create([
+            // The owner tuple is never mass-assignable: it is force-filled here only
+            // after the mismatch guard above validated it against the context.
+            $shipment = new Shipment([
                 'reference' => $data->reference,
                 'carrier_code' => $data->carrierCode,
                 'service_code' => $data->serviceCode,
@@ -48,6 +50,9 @@ final class CreateShipment
                 'currency' => $data->currency ?? 'MYR',
                 'cod_amount' => $data->codAmount,
                 'metadata' => $data->metadata,
+            ]);
+
+            $shipment->forceFill([
                 'owner_type' => config('shipping.features.owner.enabled', false)
                     ? ($resolvedOwner?->getMorphClass() ?? $ownerType)
                     : $ownerType,
@@ -55,6 +60,8 @@ final class CreateShipment
                     ? ($resolvedOwner?->getKey() ?? $ownerId)
                     : $ownerId,
             ]);
+
+            $shipment->save();
 
             foreach ($data->items as $item) {
                 $shipment->items()->create([
@@ -74,7 +81,9 @@ final class CreateShipment
             $totalWeight = $shipment->items()->sum(DB::raw('weight * quantity'));
             $shipment->update(['total_weight' => $totalWeight]);
 
-            event(new ShipmentCreated($shipment));
+            // Dispatch after commit so a rolled-back transaction cannot emit a
+            // ghost waybill for a shipment that was never persisted.
+            DB::afterCommit(fn (): mixed => event(new ShipmentCreated($shipment)));
 
             return $shipment->refresh();
         });

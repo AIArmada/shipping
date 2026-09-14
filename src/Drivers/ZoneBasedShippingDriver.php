@@ -21,6 +21,7 @@ use AIArmada\Shipping\Models\ShippingRate;
 use AIArmada\Shipping\Services\ShippingZoneResolver;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * Zone-based shipping driver that uses ShippingZone/ShippingRate DB models
@@ -115,7 +116,8 @@ class ZoneBasedShippingDriver implements ShippingDriverInterface
 
     public function createShipment(ShipmentData $data): CarrierOperationResult
     {
-        return CarrierOperationResult::succeeded(trackingNumber: 'ZONE-' . mb_strtoupper(uniqid()));
+        // ULIDs are unguessable, unlike timestamp-based uniqid() values.
+        return CarrierOperationResult::succeeded(trackingNumber: 'ZONE-' . (string) Str::ulid());
     }
 
     public function cancelShipment(string $trackingNumber): CarrierOperationResult

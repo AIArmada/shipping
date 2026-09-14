@@ -29,6 +29,13 @@ class RateShoppingEngine
     protected RateSelectionStrategyInterface $strategy;
 
     /**
+     * Rate cache keys written through this instance.
+     *
+     * @var array<int, string>
+     */
+    protected array $trackedCacheKeys = [];
+
+    /**
      * @param  array<string, mixed>  $config
      */
     public function __construct(
@@ -67,6 +74,8 @@ class RateShoppingEngine
                     return $this->fetchRatesFromAllCarriers($origin, $destination, $packages, $options);
                 });
             }
+
+            $this->trackedCacheKeys[] = $cacheKey;
 
             return $repository->remember($cacheKey, $cacheTtl, function () use ($origin, $destination, $packages, $options) {
                 return $this->fetchRatesFromAllCarriers($origin, $destination, $packages, $options);
@@ -115,17 +124,25 @@ class RateShoppingEngine
         $rates = collect();
 
         foreach ($carriers as $carrierCode) {
-            if ($this->shippingManager->hasDriver($carrierCode)) {
-                $driver = $this->shippingManager->driver($carrierCode);
+            if (! $this->shippingManager->hasDriver($carrierCode)) {
+                continue;
+            }
 
-                if ($driver->servicesDestination($destination)) {
-                    try {
-                        $carrierRates = $driver->getRates($origin, $destination, $packages, $options);
-                        $rates = $rates->merge($carrierRates);
-                    } catch (Throwable $e) {
-                        // Log error but continue with other carriers
-                        report($e);
-                    }
+            if ($this->isCircuitOpen($carrierCode)) {
+                continue;
+            }
+
+            $driver = $this->shippingManager->driver($carrierCode);
+
+            if ($driver->servicesDestination($destination)) {
+                try {
+                    $carrierRates = $driver->getRates($origin, $destination, $packages, $options);
+                    $this->recordCarrierSuccess($carrierCode);
+                    $rates = $rates->merge($carrierRates);
+                } catch (Throwable $e) {
+                    // Log error but continue with other carriers
+                    $this->recordCarrierFailure($carrierCode);
+                    report($e);
                 }
             }
         }
@@ -145,6 +162,11 @@ class RateShoppingEngine
 
     /**
      * Clear cached rates.
+     *
+     * Taggable stores flush by tag. Non-taggable stores (file, database) cannot
+     * flush by tag, so every key cached through this instance is forgotten
+     * individually; keys cached by other instances expire via TTL. Use a
+     * taggable store when cross-instance invalidation is required.
      */
     public function clearCache(): void
     {
@@ -152,7 +174,15 @@ class RateShoppingEngine
 
         if ($repository->getStore() instanceof TaggableStore) {
             $repository->tags($this->cacheTags())->flush();
+
+            return;
         }
+
+        foreach (array_unique($this->trackedCacheKeys) as $cacheKey) {
+            $repository->forget($cacheKey);
+        }
+
+        $this->trackedCacheKeys = [];
     }
 
     /**
@@ -176,7 +206,10 @@ class RateShoppingEngine
         array $packages,
         array $options = []
     ): Collection {
-        $carrierCodes = $this->shippingManager->getAvailableDrivers();
+        $carrierCodes = array_values(array_filter(
+            $this->shippingManager->getAvailableDrivers(),
+            fn (string $carrierCode): bool => ! $this->isCircuitOpen($carrierCode),
+        ));
 
         if ($carrierCodes === []) {
             return collect();
@@ -217,9 +250,14 @@ class RateShoppingEngine
                             return collect();
                         }
 
-                        return $driver->getRates($origin, $destination, $packages, $options);
+                        $rates = $driver->getRates($origin, $destination, $packages, $options);
+
+                        app(self::class)->recordCarrierSuccess($carrierCode);
+
+                        return $rates;
                     } catch (Throwable $e) {
                         // Log error but return empty - other carriers may succeed
+                        app(self::class)->recordCarrierFailure($carrierCode);
                         report($e);
 
                         return collect();
@@ -228,8 +266,9 @@ class RateShoppingEngine
             ];
         })->all();
 
-        // Execute all carrier calls concurrently
-        $results = Concurrency::run($tasks);
+        // Execute all carrier calls concurrently. The timeout is enforced by the
+        // process/fork drivers; the sync driver runs tasks inline.
+        $results = Concurrency::run($tasks, $this->concurrencyTimeout());
 
         // Merge all successful results
         $rates = collect();
@@ -242,9 +281,72 @@ class RateShoppingEngine
         return $rates->sortBy('rate');
     }
 
+    /**
+     * Record a successful carrier call, closing a tripped circuit.
+     *
+     * Public so concurrent child processes can report back through the
+     * container; prefer the rate methods over calling this directly.
+     */
+    public function recordCarrierSuccess(string $carrierCode): void
+    {
+        $this->cacheRepository()->forget($this->circuitCacheKey($carrierCode));
+    }
+
+    /**
+     * Record a failed carrier call, tripping the circuit past threshold.
+     *
+     * Public so concurrent child processes can report back through the
+     * container; prefer the rate methods over calling this directly.
+     */
+    public function recordCarrierFailure(string $carrierCode): void
+    {
+        $threshold = $this->circuitFailureThreshold();
+
+        if ($threshold <= 0) {
+            return;
+        }
+
+        $repository = $this->cacheRepository();
+        $key = $this->circuitCacheKey($carrierCode);
+        $failures = (int) $repository->get($key, 0) + 1;
+
+        $repository->put($key, $failures, $this->circuitCooldownSeconds());
+    }
+
     protected function cacheRepository(): CacheRepository
     {
         return Cache::store();
+    }
+
+    protected function isCircuitOpen(string $carrierCode): bool
+    {
+        $threshold = $this->circuitFailureThreshold();
+
+        if ($threshold <= 0) {
+            return false;
+        }
+
+        return (int) $this->cacheRepository()->get($this->circuitCacheKey($carrierCode), 0) >= $threshold;
+    }
+
+    protected function circuitCacheKey(string $carrierCode): string
+    {
+        return 'shipping:circuit:' . $carrierCode . ':failures';
+    }
+
+    protected function circuitFailureThreshold(): int
+    {
+        return (int) ($this->config['circuit_failure_threshold'] ?? 3);
+    }
+
+    protected function circuitCooldownSeconds(): int
+    {
+        return max(1, (int) ($this->config['circuit_cooldown_seconds'] ?? 300));
+    }
+
+    protected function concurrencyTimeout(): int
+    {
+        return max(1, (int) ($this->config['concurrency_timeout'] ?? 30));
     }
 
     /**

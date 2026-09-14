@@ -236,15 +236,26 @@ class ShippingZone extends Model implements Auditable
         }
 
         foreach ($this->postcode_ranges as $range) {
-            $from = $range['from'] ?? '';
-            $to = $range['to'] ?? $from;
+            $from = (string) ($range['from'] ?? '');
+            $to = (string) ($range['to'] ?? $from);
 
-            if ($postcode >= $from && $postcode <= $to) {
+            if ($this->postcodeInRange($postcode, $from, $to)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    protected function postcodeInRange(string $postcode, string $from, string $to): bool
+    {
+        // All-digit postcodes compare numerically so that '50000' does not match
+        // a '1000'-'9999' range the way lexicographic comparison would allow.
+        if (ctype_digit($postcode) && ctype_digit($from) && ctype_digit($to)) {
+            return (int) $postcode >= (int) $from && (int) $postcode <= (int) $to;
+        }
+
+        return $postcode >= $from && $postcode <= $to;
     }
 
     protected function matchesRadius(AddressData $address): bool

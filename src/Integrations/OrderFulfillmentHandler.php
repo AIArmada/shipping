@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace AIArmada\Shipping\Integrations;
 
 use AIArmada\Addressing\Models\Address;
+use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Inventory\Integrations\FulfillmentLocationService;
 use AIArmada\Inventory\Models\InventoryLocation;
+use AIArmada\Inventory\Support\InventoryOwnerScope;
 use AIArmada\Orders\Contracts\FulfillmentHandler;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Shipping\Data\AddressData;
@@ -307,7 +309,7 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
                     if ($items !== []) {
                         // If forced location, check it can fulfill
                         if ($forcedLocationId !== null) {
-                            $location = $this->getLocationById($forcedLocationId);
+                            $location = $this->getLocationById((string) $forcedLocationId, $order);
                             if ($location !== null && $this->locationCanFulfill($fulfillmentService, $location, $items)) {
                                 return $this->locationToAddress($location);
                             }
@@ -331,18 +333,33 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
     }
 
     /**
-     * Get a location model by ID.
+     * Get a location model by ID, scoped to the order's owner.
+     *
+     * A caller-supplied location must belong to the same owner as the order;
+     * otherwise shipments could originate from (and disclose) a foreign
+     * warehouse. Unresolvable locations fall back to automatic selection.
      *
      * @return object|null Location model or null
      */
-    private function getLocationById(string $locationId): ?object
+    private function getLocationById(string $locationId, Order $order): ?object
     {
         if (! class_exists(InventoryLocation::class)) {
             return null;
         }
 
         try {
-            return InventoryLocation::find($locationId);
+            // Inventory locations carry no global owner scope; apply the
+            // package scoping explicitly under the order's owner context.
+            $owner = OwnerContext::fromTypeAndId($order->owner_type ?? null, $order->owner_id ?? null);
+
+            $location = OwnerContext::withOwner(
+                $owner,
+                static fn (): ?InventoryLocation => InventoryOwnerScope::applyToLocationQuery(
+                    InventoryLocation::query()
+                )->whereKey($locationId)->first(),
+            );
+
+            return $location instanceof InventoryLocation ? $location : null;
         } catch (Throwable) {
             return null;
         }

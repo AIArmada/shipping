@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\Shipping\Actions;
 
 use AIArmada\Shipping\Models\ReturnAuthorization;
+use AIArmada\Shipping\States\ReturnAuthorizationState\RmaApproved;
 use Carbon\CarbonImmutable;
 use Lorisleiva\Actions\Concerns\AsAction;
 use RuntimeException;
@@ -24,15 +25,20 @@ final class ApproveReturnAuthorization
 
         $resolvedActorId = $actorId ?? (auth()->id() !== null ? (string) auth()->id() : null);
 
-        $rma->update([
-            'status' => 'approved',
+        $transitioned = $rma->status->transitionTo(RmaApproved::class);
+
+        if (! $transitioned instanceof ReturnAuthorization) {
+            throw new RuntimeException("Return authorization {$rma->rma_number} could not transition to approved.");
+        }
+
+        $transitioned->update([
             'approved_at' => CarbonImmutable::now(),
             'approved_by' => $resolvedActorId,
-            'metadata' => array_merge($rma->metadata ?? [], [
+            'metadata' => array_merge($transitioned->metadata ?? [], [
                 'approval_notes' => $notes,
             ]),
         ]);
 
-        return $rma->refresh();
+        return $transitioned->refresh();
     }
 }

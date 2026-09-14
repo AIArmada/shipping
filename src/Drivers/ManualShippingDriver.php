@@ -18,6 +18,7 @@ use AIArmada\Shipping\Enums\DriverCapability;
 use AIArmada\Shipping\Enums\TrackingStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * Manual shipping driver for merchants who handle shipping outside the system.
@@ -92,8 +93,9 @@ class ManualShippingDriver implements ShippingDriverInterface
 
     public function createShipment(ShipmentData $data): CarrierOperationResult
     {
-        // Creates a local reference without external API
-        return CarrierOperationResult::succeeded(trackingNumber: 'MAN-' . mb_strtoupper(uniqid()));
+        // Creates a local reference without external API. ULIDs are unguessable,
+        // unlike timestamp-based uniqid() values.
+        return CarrierOperationResult::succeeded(trackingNumber: 'MAN-' . (string) Str::ulid());
     }
 
     public function cancelShipment(string $trackingNumber): CarrierOperationResult

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\Shipping\Actions;
 
 use AIArmada\Shipping\Models\Shipment;
-use AIArmada\Shipping\Models\ShipmentItem;
+use Illuminate\Support\Facades\DB;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 final class RecalculateShipmentWeight
@@ -14,9 +14,7 @@ final class RecalculateShipmentWeight
 
     public function handle(Shipment $shipment): Shipment
     {
-        $totalWeight = $shipment->items()->get()->sum(
-            fn (ShipmentItem $item): int => $item->weight * $item->quantity,
-        );
+        $totalWeight = (int) $shipment->items()->sum(DB::raw('weight * quantity'));
 
         $shipment->update(['total_weight' => $totalWeight]);
 

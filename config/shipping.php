@@ -118,6 +118,9 @@ return [
         'strategy' => 'cheapest', // cheapest, fastest, preferred
         'cache_ttl' => 300, // seconds
         'fallback_to_manual' => true,
+        'concurrency_timeout' => 30, // seconds per carrier fan-out; process/fork drivers only
+        'circuit_failure_threshold' => 3, // consecutive failures before a carrier is skipped; 0 disables
+        'circuit_cooldown_seconds' => 300, // seconds a tripped carrier stays skipped
         'carrier_priority' => [
             // 'jnt' => 1,
             // 'poslaju' => 2,

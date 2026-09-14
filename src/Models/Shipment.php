@@ -70,8 +70,6 @@ class Shipment extends Model implements Auditable
     protected $keyType = 'string';
 
     protected $fillable = [
-        'owner_type',
-        'owner_id',
         'shippable_id',
         'shippable_type',
         'reference',

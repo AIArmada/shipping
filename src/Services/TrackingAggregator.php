@@ -23,6 +23,7 @@ use AIArmada\Shipping\States\OutForDelivery;
 use AIArmada\Shipping\States\ReturnToSender;
 use AIArmada\Shipping\States\ShipmentStatus as ShipmentStatusState;
 use Carbon\CarbonImmutable;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Throwable;
@@ -160,34 +161,62 @@ class TrackingAggregator
         $newEvents = collect();
         $mapper = $this->statusMappers[$shipment->carrier_code] ?? null;
 
+        if ($events->isEmpty()) {
+            return $newEvents;
+        }
+
+        // Fetch existing (code, occurred_at) pairs once per shipment instead of
+        // issuing one exists() query per event.
+        /** @var array<string, true> $existing */
+        $existing = [];
+
+        foreach ($shipment->events()
+            ->whereIn('carrier_event_code', $events
+                ->map(static fn (TrackingEventData $eventData): string => $eventData->code)
+                ->unique()
+                ->values()
+                ->all())
+            ->get(['carrier_event_code', 'occurred_at']) as $storedEvent) {
+            $existing[$this->trackingEventKey($storedEvent->carrier_event_code, $storedEvent->occurred_at)] = true;
+        }
+
         foreach ($events as $eventData) {
-            // Check if event already exists
-            $exists = $shipment->events()
-                ->where('carrier_event_code', $eventData->code)
-                ->where('occurred_at', $eventData->timestamp)
-                ->exists();
+            $key = $this->trackingEventKey($eventData->code, $eventData->timestamp);
 
-            if (! $exists) {
-                $normalizedStatus = $eventData->normalizedStatus
-                    ?? ($mapper ? $mapper->map($eventData->code) : TrackingStatus::InTransit);
-
-                $event = $shipment->events()->create([
-                    'carrier_event_code' => $eventData->code,
-                    'normalized_status' => $normalizedStatus,
-                    'description' => $eventData->description,
-                    'location' => $eventData->location,
-                    'city' => $eventData->city,
-                    'state' => $eventData->state,
-                    'country' => $eventData->country,
-                    'occurred_at' => $eventData->timestamp,
-                    'raw_data' => $eventData->raw,
-                ]);
-
-                $newEvents->push($event);
+            if (isset($existing[$key])) {
+                continue;
             }
+
+            $existing[$key] = true;
+
+            $normalizedStatus = $eventData->normalizedStatus
+                ?? ($mapper ? $mapper->map($eventData->code) : TrackingStatus::InTransit);
+
+            $event = $shipment->events()->create([
+                'carrier_event_code' => $eventData->code,
+                'normalized_status' => $normalizedStatus,
+                'description' => $eventData->description,
+                'location' => $eventData->location,
+                'city' => $eventData->city,
+                'state' => $eventData->state,
+                'country' => $eventData->country,
+                'occurred_at' => $eventData->timestamp,
+                'raw_data' => $eventData->raw,
+            ]);
+
+            $newEvents->push($event);
         }
 
         return $newEvents;
+    }
+
+    private function trackingEventKey(?string $code, mixed $occurredAt): string
+    {
+        $timestamp = $occurredAt instanceof DateTimeInterface
+            ? CarbonImmutable::parse($occurredAt->format(DateTimeInterface::ATOM))
+            : CarbonImmutable::parse((string) $occurredAt);
+
+        return ($code ?? '') . '|' . $timestamp->getTimestamp();
     }
 
     /**
