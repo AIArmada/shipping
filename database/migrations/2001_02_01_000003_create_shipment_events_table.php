@@ -38,9 +38,4 @@ return new class extends Migration
             );
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists(config('shipping.database.tables.shipment_events', 'shipment_events'));
-    }
 };

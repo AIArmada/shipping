@@ -27,9 +27,4 @@ return new class extends Migration
             $table->index(['shipment_id', 'format'], $tableName . '_shipment_format');
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists(config('shipping.database.tables.shipment_labels', 'shipment_labels'));
-    }
 };

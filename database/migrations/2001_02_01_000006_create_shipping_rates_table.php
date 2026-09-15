@@ -43,9 +43,4 @@ return new class extends Migration
             $table->index('method_code', $tableName . '_method_code');
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists(config('shipping.database.tables.shipping_rates', 'shipping_rates'));
-    }
 };

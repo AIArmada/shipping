@@ -55,9 +55,4 @@ return new class extends Migration
             $table->index(['carrier_code', 'status', 'created_at'], $tableName . '_carrier_status');
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists(config('shipping.database.tables.shipments', 'shipments'));
-    }
 };

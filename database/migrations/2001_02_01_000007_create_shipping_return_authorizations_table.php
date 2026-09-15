@@ -66,10 +66,4 @@ return new class extends Migration
             $table->unique(['return_authorization_id', 'sku'], $itemsTable . '_rma_sku_unique');
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists(config('shipping.database.tables.return_authorization_items', 'return_authorization_items'));
-        Schema::dropIfExists(config('shipping.database.tables.return_authorizations', 'return_authorizations'));
-    }
 };

@@ -36,9 +36,4 @@ return new class extends Migration
             $table->index(['shipment_id', 'sku'], $tableName . '_shipment_sku');
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists(config('shipping.database.tables.shipment_items', 'shipment_items'));
-    }
 };

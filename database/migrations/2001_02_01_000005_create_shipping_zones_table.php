@@ -41,9 +41,4 @@ return new class extends Migration
             $table->index('priority', $tableName . '_priority');
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists(config('shipping.database.tables.shipping_zones', 'shipping_zones'));
-    }
 };
