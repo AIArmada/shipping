@@ -7,7 +7,7 @@ title: Installation
 ## Requirements
 
 - PHP 8.4 or higher
-- Laravel 11 or higher
+- Laravel 13 or higher
 - `aiarmada/commerce-support` package
 
 ## Install via Composer

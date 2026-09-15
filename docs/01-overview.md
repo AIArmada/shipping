@@ -157,7 +157,7 @@ packages/shipping/
 ## Requirements
 
 - PHP 8.4+
-- Laravel 11+
+- Laravel 13+
 - `aiarmada/commerce-support` package
 - `brick/money` for currency handling
 - `spatie/laravel-data` for DTOs
