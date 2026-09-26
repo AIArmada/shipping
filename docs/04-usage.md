@@ -22,9 +22,9 @@ $shipment = CreateShipment::run(
         'reference' => 'ORD-123',
         'carrierCode' => 'manual',
         'serviceCode' => 'standard',
-        'origin' => [...],
-        'destination' => [...],
-        'items' => [...],
+        'origin' => $origin,
+        'destination' => $destination,
+        'items' => $items,
     ]),
 );
 
@@ -93,12 +93,23 @@ $total = Cart::total();
 use AIArmada\Shipping\Data\AddressData;
 use AIArmada\Shipping\Data\PackageData;
 
+// AddressData requires name, phone, line1 and postcode.
+$origin = AddressData::from([
+    'name' => 'My Warehouse',
+    'phone' => '+60300000000',
+    'line1' => '123 Warehouse St',
+    'postcode' => '50000',
+    'country' => 'MY',
+]);
+
 $destination = AddressData::from([
+    'name' => 'John Doe',
+    'phone' => '+60123456789',
     'line1' => '456 Customer Ave',
-    'city' => 'Petaling Jaya',
-    'state' => 'Selangor',
     'postcode' => '47800',
     'country' => 'MY',
+    'city' => 'Petaling Jaya',
+    'state' => 'Selangor',
 ]);
 
 $packages = [
@@ -111,10 +122,10 @@ $packages = [
 ];
 
 // Get rates from default driver
-$rates = Shipping::getRates($destination, $packages);
+$rates = Shipping::getRates($origin, $destination, $packages);
 
 // Get rates from specific driver
-$rates = Shipping::driver('flat_rate')->getRates($destination, $packages);
+$rates = Shipping::driver('flat_rate')->getRates($origin, $destination, $packages);
 ```
 
 ### Rate Shopping (Best Rate)
@@ -125,10 +136,10 @@ use AIArmada\Shipping\Services\RateShoppingEngine;
 $engine = app(RateShoppingEngine::class);
 
 // Get best rate across all carriers
-$bestRate = $engine->getBestRate($destination, $packages);
+$bestRate = $engine->getBestRate($origin, $destination, $packages);
 
 // Get all rates from all carriers
-$allRates = $engine->getAllRates($destination, $packages);
+$allRates = $engine->getAllRates($origin, $destination, $packages);
 ```
 
 ## Creating Shipments
@@ -144,10 +155,12 @@ use AIArmada\Shipping\Data\ShipmentItemData;
 $service = app(ShipmentService::class);
 
 $shipmentData = ShipmentData::from([
-    'carrier_code' => 'manual',
-    'service_code' => 'standard',
+    'reference' => 'ORD-123',
+    'carrierCode' => 'manual',
+    'serviceCode' => 'standard',
     'origin' => AddressData::from([
         'name' => 'My Warehouse',
+        'phone' => '+60300000000',
         'line1' => '123 Warehouse St',
         'city' => 'Kuala Lumpur',
         'state' => 'Kuala Lumpur',
@@ -171,19 +184,20 @@ $shipmentData = ShipmentData::from([
             'weight' => 250, // grams
         ]),
     ],
-    'total_weight' => 500,
 ]);
 
 // Create shipment (Draft status)
 $shipment = $service->create($shipmentData);
 
 // Ship the shipment (transitions to Shipped)
-$result = $service->ship($shipment, 'jnt');
+$shipment = $service->ship($shipment);
 
-// The result includes tracking info
-echo $result->trackingNumber; // "JT1234567890"
-echo $result->labelUrl;       // URL to label PDF
+// The shipment carries the carrier tracking number
+echo $shipment->tracking_number; // "JT1234567890"
 ```
+
+`ShipmentData` has no `total_weight` property — total weight is derived from the
+`items` and `packages` you pass via `getTotalWeight()`.
 
 ### Creating Shipment for an Order
 
@@ -199,8 +213,8 @@ $shipment = Shipment::create([
     'shippable_id' => $order->id,
     'carrier_code' => 'jnt',
     'service_code' => 'express',
-    'origin' => [...],
-    'destination' => [...],
+    'origin_address' => $originPayload,
+    'destination_address' => $destinationPayload,
     'status' => Draft::class,
     'total_weight' => 1500,
 ]);
@@ -229,12 +243,16 @@ use AIArmada\Shipping\Services\TrackingAggregator;
 
 $aggregator = app(TrackingAggregator::class);
 
-// Sync all active shipments
-$results = $aggregator->syncAll();
+// Sync a single shipment
+$shipment = $aggregator->syncTracking($shipment);
 
-// Sync specific shipments
-$shipments = Shipment::whereIn('id', $ids)->get();
-$results = $aggregator->sync($shipments);
+// Sync a batch
+$results = $aggregator->syncBatch(
+    Shipment::whereIn('id', $ids)->get()
+);
+
+// Find shipments due for a sync
+$due = $aggregator->getShipmentsNeedingUpdate(limit: 100);
 ```
 
 ## Generating Labels
@@ -247,11 +265,12 @@ $service = app(ShipmentService::class);
 // Generate label for existing shipment
 $label = $service->generateLabel($shipment);
 
-echo $label->format;        // 'pdf' or 'zpl'
-echo $label->contentBase64; // Base64-encoded label content
+echo $label->format;   // 'pdf' or 'zpl'
+echo $label->url;      // label URL
+echo $label->content;  // raw label content (base64 for binary formats)
 
 // Save to disk
-file_put_contents('label.pdf', base64_decode($label->contentBase64));
+file_put_contents('label.pdf', base64_decode((string) $label->content));
 ```
 
 ## Cancelling Shipments
@@ -279,7 +298,7 @@ $zone = ShippingZone::create([
     'name' => 'Malaysia',
     'type' => 'country',
     'countries' => ['MY'],
-    'is_active' => true,
+    'active' => true,
 ]);
 
 // State-based zone
@@ -288,7 +307,7 @@ $zone = ShippingZone::create([
     'type' => 'state',
     'countries' => ['MY'],
     'states' => ['Selangor', 'Kuala Lumpur', 'Penang'],
-    'is_active' => true,
+    'active' => true,
 ]);
 
 // Postcode-based zone
@@ -296,39 +315,43 @@ $zone = ShippingZone::create([
     'name' => 'Klang Valley',
     'type' => 'postcode',
     'countries' => ['MY'],
-    'postcodes' => '40000-48000, 50000-59999, 68000-68100',
-    'is_active' => true,
+    'postcode_ranges' => '40000-48000, 50000-59999, 68000-68100',
+    'active' => true,
 ]);
 ```
 
+> **info**
+> `ShippingZone` fillable columns are `postcode_ranges` and `active` — not
+> `postcodes` / `is_active`. The migration defaults `active` to `true`.
+
 ### Adding Rates to Zones
+
+`ShippingRate` uses `calculation_type` (`flat`, `per_kg`, `per_item`,
+`percentage`, `table`), `method_code`, `per_unit_rate`,
+`estimated_days_min` / `estimated_days_max`, and `active`:
 
 ```php
 use AIArmada\Shipping\Models\ShippingRate;
-use AIArmada\Shipping\Enums\RateType;
 
 // Flat rate
 $rate = $zone->rates()->create([
     'name' => 'Standard Shipping',
     'carrier_code' => 'manual',
-    'service_code' => 'standard',
-    'rate_type' => RateType::Flat,
+    'method_code' => 'standard',
+    'calculation_type' => 'flat',
     'base_rate' => 800, // RM8.00
-    'min_weight' => 0,
-    'max_weight' => 5000, // 5kg
-    'delivery_days_min' => 3,
-    'delivery_days_max' => 5,
-    'is_active' => true,
+    'estimated_days_min' => 3,
+    'estimated_days_max' => 5,
+    'active' => true,
 ]);
 
 // Per-kg rate
 $rate = $zone->rates()->create([
     'name' => 'Heavy Items',
-    'rate_type' => RateType::PerKg,
-    'base_rate' => 500,    // RM5.00 base
-    'per_kg_rate' => 200,  // RM2.00 per kg
-    'min_weight' => 5001,
-    'is_active' => true,
+    'calculation_type' => 'per_kg',
+    'base_rate' => 500,     // RM5.00 base
+    'per_unit_rate' => 200, // RM2.00 per kg
+    'active' => true,
 ]);
 
 // Table-based rate (weight tiers)
@@ -343,7 +366,7 @@ $rate = $zone->rates()->create([
         ['min_weight' => 2001, 'max_weight' => 5000, 'rate' => 1800], // 2-5kg: RM18
         ['min_weight' => 5001, 'max_weight' => null, 'rate' => 2500], // 5kg+: RM25
     ],
-    'is_active' => true,
+    'active' => true,
 ]);
 ```
 
@@ -356,6 +379,9 @@ use AIArmada\Shipping\Data\AddressData;
 $resolver = app(ShippingZoneResolver::class);
 
 $address = AddressData::from([
+    'name' => 'John Doe',
+    'phone' => '+60123456789',
+    'line1' => '456 Customer Ave',
     'city' => 'Petaling Jaya',
     'state' => 'Selangor',
     'postcode' => '47800',
@@ -498,16 +524,16 @@ ReturnAuthorization::approved()->get();
 
 ## Shipment State Machine
 
-Shipments follow a state machine workflow:
+Shipments follow a state machine workflow (12 states, `src/States`):
 
 ```
-Draft → Pending → Shipped → InTransit → OutForDelivery → Delivered
-                    ↓
-                Exception → DeliveryFailed → ReturnToSender
-                    ↓
-                OnHold
-                    ↓
-                Cancelled
+Draft → Pending → AwaitingPickup → Shipped → InTransit → OutForDelivery → Delivered
+                     ↓
+                 ExceptionStatus → DeliveryFailed → ReturnToSender
+                     ↓
+                 OnHold
+                     ↓
+                 Cancelled
 ```
 
 Check status capabilities:

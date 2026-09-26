@@ -20,7 +20,7 @@ title: Troubleshooting
 use AIArmada\Shipping\Facades\Shipping;
 
 dd(Shipping::getAvailableDrivers());
-// Should return ['null', 'manual', 'flat_rate', 'your_driver']
+// Should return ['manual', 'flat_rate', 'zone', 'your_driver']
 ```
 
 ### Rate Shopping Returns Empty Rates
@@ -38,10 +38,10 @@ dd(Shipping::getAvailableDrivers());
    ```php
    $driver->supports(DriverCapability::RateQuotes);
    ```
-3. Enable fallback driver in config:
+3. Enable the manual fallback in config:
    ```php
    'rate_shopping' => [
-       'fallback_driver' => 'manual',
+       'fallback_to_manual' => true,
    ],
    ```
 
@@ -73,14 +73,18 @@ dd(Shipping::getAvailableDrivers());
 1. Manually trigger tracking sync:
    ```php
    use AIArmada\Shipping\Services\TrackingAggregator;
-   
+
    $aggregator = app(TrackingAggregator::class);
-   $results = $aggregator->syncAll();
-   dd($results);
+
+   // Sync one shipment
+   $results = $aggregator->syncTracking($shipment);
+
+   // Or sync a batch
+   $results = $aggregator->syncBatch(Shipment::whereIn('id', $ids)->get());
    ```
 2. Check shipment age (old shipments stop syncing):
    ```php
-   config('shipping.tracking.max_sync_age_days'); // Default 30
+   config('shipping.tracking.max_tracking_age'); // Default 30 (days)
    ```
 3. Verify carrier driver implements tracking:
    ```php
@@ -105,9 +109,9 @@ dd(Shipping::getAvailableDrivers());
 2. Ensure `OwnerContext` is set in middleware:
    ```php
    use AIArmada\CommerceSupport\Support\OwnerContext;
-   
+
    // In your middleware
-   OwnerContext::set($tenant);
+   OwnerContext::setForRequest($tenant);
    ```
 3. Verify queries use owner scoping:
    ```php
@@ -163,9 +167,25 @@ dd(Shipping::getAvailableDrivers());
 
 ### Table Rate Returns Zero
 
-**Known Issue**: Table-based rate calculation is not fully implemented.
+**Cause**: The `rate_table` tiers do not cover the parcel weight, or
+`calculation_type` is not `table`.
 
-**Workaround**: Use `flat`, `per_kg`, or `per_item` rate types instead until table rates are implemented.
+`ShippingRate::calculateTableRate()` matches a tier when
+`min_weight <= weightGrams <= max_weight` and falls back to `base_rate` when
+`rate_table` is null or empty.
+
+**Solution**: Make sure the tiers span the weights you ship, and that
+`calculation_type` is `table`:
+
+```php
+$rate->update([
+    'calculation_type' => 'table',
+    'rate_table' => [
+        ['min_weight' => 0, 'max_weight' => 500, 'rate' => 500],
+        ['min_weight' => 501, 'max_weight' => null, 'rate' => 800],
+    ],
+]);
+```
 
 ## Performance Issues
 
@@ -182,14 +202,17 @@ dd(Shipping::getAvailableDrivers());
 2. Enable rate caching:
    ```php
    'rate_shopping' => [
-       'cache_ttl' => 5, // Minutes
+       'cache_ttl' => 300, // seconds
    ],
    ```
 3. Limit carriers queried:
    ```php
    $engine = app(RateShoppingEngine::class);
-   $rates = $engine->getAllRates($address, $packages, drivers: ['jnt', 'poslaju']);
+   $rates = $engine->getAllRates($origin, $destination, $packages);
    ```
+
+Use `rate_shopping.carrier_priority` to influence selection; there is no
+`drivers:` argument on `getAllRates()`.
 
 ### Database Query Performance
 

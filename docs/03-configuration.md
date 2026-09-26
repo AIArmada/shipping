@@ -4,47 +4,62 @@ title: Configuration
 
 # Configuration
 
-All configuration is in `config/shipping.php`. Below is a complete reference.
+All configuration is in `config/shipping.php`. Each section below shows the
+shipped default for that key only.
 
 ## Database
 
+The shipped config builds every table name from a single prefix variable, so
+setting `SHIPPING_TABLE_PREFIX` (or `COMMERCE_TABLE_PREFIX`) renames all tables
+at once.
+
 ```php
+$tablePrefix = env('SHIPPING_TABLE_PREFIX', env('COMMERCE_TABLE_PREFIX', ''));
+
 'database' => [
-    // Table name prefix
-    'table_prefix' => 'shipping_',
-    
-    // Override individual table names
+    'table_prefix' => $tablePrefix,
     'tables' => [
-        'shipments' => null,           // Uses prefix + 'shipments'
-        'shipment_items' => null,
-        'shipment_events' => null,
-        'shipment_labels' => null,
-        'zones' => null,
-        'rates' => null,
-        'return_authorizations' => null,
-        'return_authorization_items' => null,
+        'shipments' => $tablePrefix . 'shipments',
+        'shipment_items' => $tablePrefix . 'shipment_items',
+        'shipment_labels' => $tablePrefix . 'shipment_labels',
+        'shipment_events' => $tablePrefix . 'shipment_events',
+        'shipping_zones' => $tablePrefix . 'shipping_zones',
+        'shipping_rates' => $tablePrefix . 'shipping_rates',
+        'return_authorizations' => $tablePrefix . 'return_authorizations',
+        'return_authorization_items' => $tablePrefix . 'return_authorization_items',
     ],
+    'json_column_type' => env('SHIPPING_JSON_COLUMN_TYPE', 'jsonb'),
 ],
 ```
+
+> **info**
+> `shipment_operations` is read by the package (`config('shipping.database.tables.shipment_operations')`)
+> but is not defined in the shipped `tables` array, so `ShipmentOperation` falls
+> back to the default name. Add `'shipment_operations' => $tablePrefix . 'shipment_operations'`
+> if you need a prefixed name for it.
 
 ## Defaults
 
 ```php
 'defaults' => [
-    'currency' => env('SHIPPING_DEFAULT_CURRENCY', 'MYR'),
+    'currency' => 'MYR',
     'weight_unit' => 'g',
+    'reference_prefix' => env('SHIPPING_REFERENCE_PREFIX', 'SHP-'),
     'origin' => [
         'name' => env('SHIPPING_ORIGIN_NAME', env('APP_NAME', 'Store')),
         'phone' => env('SHIPPING_ORIGIN_PHONE', ''),
-        'line1' => env('SHIPPING_ORIGIN_LINE1'),
-        'line2' => env('SHIPPING_ORIGIN_LINE2'),
-        'postcode' => env('SHIPPING_ORIGIN_POSTCODE'),
+        'line1' => env('SHIPPING_ORIGIN_LINE1', ''),
+        'line2' => env('SHIPPING_ORIGIN_LINE2', ''),
+        'postcode' => env('SHIPPING_ORIGIN_POSTCODE', ''),
         'country' => env('SHIPPING_ORIGIN_COUNTRY', 'MY'),
         'state' => env('SHIPPING_ORIGIN_STATE'),
         'city' => env('SHIPPING_ORIGIN_CITY'),
     ],
 ],
 ```
+
+`defaults.currency` is a literal `'MYR'`, not env-driven — change it in the
+published file. `weight_unit` is a literal `'g'`.
 
 ## Owner Scoping (Multi-Tenancy)
 
@@ -86,34 +101,47 @@ For manual fulfillment without carrier integration:
 ```php
 'drivers' => [
     'manual' => [
-        'name' => 'Manual',
-        'base_rate' => 1000, // RM10.00 (in cents)
+        'driver' => 'manual',
+        'name' => 'Manual Shipping',
+        'default_rate' => 1000, // RM10.00 in minor units
+        'estimated_days' => 3,
+        'free_shipping_threshold' => null,
     ],
 ],
 ```
 
 ### Flat Rate Driver
 
-Tiered flat-rate shipping:
+Named flat rates:
 
 ```php
 'drivers' => [
     'flat_rate' => [
-        'name' => 'Flat Rate',
+        'driver' => 'flat_rate',
+        'name' => 'Flat Rate Shipping',
         'rates' => [
             'standard' => [
-                'name' => 'Standard Shipping',
-                'amount' => 800,           // RM8.00
-                'days_min' => 3,
-                'days_max' => 5,
+                'name' => 'Standard Delivery',
+                'rate' => 800, // RM8.00 in minor units
+                'estimated_days' => 3,
             ],
             'express' => [
-                'name' => 'Express Shipping',
-                'amount' => 1500,          // RM15.00
-                'days_min' => 1,
-                'days_max' => 2,
+                'name' => 'Express Delivery',
+                'rate' => 1500, // RM15.00 in minor units
+                'estimated_days' => 1,
             ],
         ],
+    ],
+],
+```
+
+### Zone Driver
+
+```php
+'drivers' => [
+    'zone' => [
+        'driver' => 'zone',
+        'name' => 'Zone-Based Shipping',
     ],
 ],
 ```
@@ -142,14 +170,21 @@ Shipping::extend('jnt', function ($container) {
 
 The strategy key must identify a strategy registered in `ZoneResolutionStrategyRegistry`; `geo` is registered by default.
 
-Zone candidates are owner-scoped via `forOwner()` with `shipping.features.owner.include_global` when owner mode is enabled:
+Zone candidates are owner-scoped via `forOwner()` with `shipping.features.owner.include_global` when owner mode is enabled. `AddressData` requires `name`, `phone`, `line1`, and `postcode`:
 
 ```php
-use AIArmada\Shipping\Services\ShippingZoneResolver;
 use AIArmada\Shipping\Data\AddressData;
+use AIArmada\Shipping\Services\ShippingZoneResolver;
 
 $zone = app(ShippingZoneResolver::class)->resolve(
-    AddressData::from(['country' => 'MY', 'state' => 'Selangor', 'postcode' => '47800']),
+    AddressData::from([
+        'name' => 'Jane Doe',
+        'phone' => '+60123456789',
+        'line1' => '1 Jalan Test',
+        'postcode' => '47800',
+        'country' => 'MY',
+        'state' => 'Selangor',
+    ]),
 );
 ```
 
@@ -157,17 +192,16 @@ $zone = app(ShippingZoneResolver::class)->resolve(
 
 ```php
 'rate_shopping' => [
-    // Rate selection strategy
     'strategy' => 'cheapest', // cheapest, fastest, preferred
-
-    // Cache duration in seconds
-    'cache_ttl' => 300,
-
-    // Fall back to the manual driver when carriers fail
+    'cache_ttl' => 300, // seconds
     'fallback_to_manual' => true,
-
-    // Lower values have higher priority
-    'carrier_priority' => [],
+    'concurrency_timeout' => 30, // seconds per carrier fan-out; process/fork drivers only
+    'circuit_failure_threshold' => 3, // consecutive failures before a carrier is skipped; 0 disables
+    'circuit_cooldown_seconds' => 300, // seconds a tripped carrier stays skipped
+    'carrier_priority' => [
+        // 'jnt' => 1,
+        // 'poslaju' => 2,
+    ],
 ],
 ```
 
@@ -183,16 +217,16 @@ $zone = app(ShippingZoneResolver::class)->resolve(
 
 ```php
 'free_shipping' => [
-    // Enable free shipping threshold
     'enabled' => false,
-    
-    // Minimum cart value for free shipping (in cents)
-    'threshold' => 15000, // RM150.00
-    
-    // Currency symbol for messages
-    'currency' => 'RM',
+    'threshold' => 15000, // RM150.00 in minor units
 ],
 ```
+
+> **info**
+> There is no `free_shipping.currency` config key. `ShippingServiceProvider`
+> injects `currency` into the free-shipping config at runtime from
+> `shipping.defaults.currency` when it is not already set, so the value is an ISO
+> 4217 code (`MYR`), not a display symbol.
 
 ## Zone Resolution Strategy Registry
 
@@ -231,97 +265,17 @@ $policy = $registry->get('threshold');
 
 ```php
 'tracking' => [
-    // Sync interval in seconds
-    'sync_interval' => 3600, // 1 hour
-    
-    // Maximum shipment age to sync (days)
-    'max_sync_age_days' => 30,
-    
-    // Batch size for bulk sync
-    'batch_size' => 100,
+    'sync_interval' => 3600, // 1 hour in seconds
+    'max_tracking_age' => 30, // days to keep syncing
 ],
 ```
 
-## API Settings
+## HTTP
 
 ```php
-// API timeout in seconds
-'api_timeout' => 30,
-
-// Number of retry attempts
-'api_retries' => 3,
-```
-
-## Complete Example
-
-```php
-<?php
-
-return [
-    'database' => [
-        'table_prefix' => 'shipping_',
-        'tables' => [],
-    ],
-
-    'defaults' => [
-        'currency' => env('SHIPPING_CURRENCY', 'MYR'),
-        'weight_unit' => 'g',
-        'dimension_unit' => 'cm',
-        'origin' => [
-            'line1' => env('SHIPPING_ORIGIN_LINE1'),
-            'city' => env('SHIPPING_ORIGIN_CITY'),
-            'state' => env('SHIPPING_ORIGIN_STATE'),
-            'postcode' => env('SHIPPING_ORIGIN_POSTCODE'),
-            'country' => env('SHIPPING_ORIGIN_COUNTRY', 'MY'),
-        ],
-    ],
-
-    'features' => [
-        'owner' => [
-            'enabled' => true,
-            'include_global' => false,
-        ],
-    ],
-
-    'drivers' => [
-        'default' => 'manual',
-        'manual' => [
-            'name' => 'Manual',
-            'base_rate' => 1000,
-        ],
-        'flat_rate' => [
-            'name' => 'Flat Rate',
-            'rates' => [
-                'standard' => [
-                    'name' => 'Standard',
-                    'amount' => 800,
-                    'days_min' => 3,
-                    'days_max' => 5,
-                ],
-            ],
-        ],
-    ],
-
-    'rate_shopping' => [
-        'enabled' => true,
-        'strategy' => 'cheapest',
-        'cache_ttl' => 5,
-        'fallback_driver' => 'manual',
-    ],
-
-    'free_shipping' => [
-        'enabled' => true,
-        'threshold' => 15000,
-        'currency' => 'RM',
-    ],
-
-    'tracking' => [
-        'sync_interval' => 3600,
-        'max_sync_age_days' => 30,
-        'batch_size' => 100,
-    ],
-
-    'api_timeout' => 30,
-    'api_retries' => 3,
-];
+'http' => [
+    'timeout' => env('SHIPPING_API_TIMEOUT', 30), // seconds
+    'retries' => env('SHIPPING_API_RETRIES', 3),
+    'base_delay_ms' => env('SHIPPING_API_BASE_DELAY_MS', 100),
+],
 ```
