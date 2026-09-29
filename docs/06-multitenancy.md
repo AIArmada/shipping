@@ -2,8 +2,6 @@
 title: Multitenancy
 ---
 
-import Aside from "@components/Aside.astro"
-
 # Multitenancy
 
 The shipping package supports multi-tenant architectures using the `commerce-support` owner scoping system, allowing shipments, zones, and return authorizations to be isolated by tenant.
@@ -15,19 +13,19 @@ The shipping package supports multi-tenant architectures using the `commerce-sup
 'features' => [
     'owner' => [
         'enabled' => env('SHIPPING_OWNER_ENABLED', false),
-        'include_global' => false,
-        'auto_assign_on_create' => true,
+        'include_global' => env('SHIPPING_OWNER_INCLUDE_GLOBAL', false),
+        'auto_assign_on_create' => env('SHIPPING_OWNER_AUTO_ASSIGN_ON_CREATE', true),
     ],
 ],
 ```
 
 ```env
 SHIPPING_OWNER_ENABLED=true
+SHIPPING_OWNER_INCLUDE_GLOBAL=true
 ```
 
-<Aside variant="warning">
-  The default is `false` (single-tenant). Without enabling this, all tenants share the same shipment data. Always set `SHIPPING_OWNER_ENABLED=true` in multi-tenant deployments.
-</Aside>
+> **warning**
+> The default is `false` (single-tenant). Without enabling this, all tenants share the same shipment data. Always set `SHIPPING_OWNER_ENABLED=true` in multi-tenant deployments.
 
 ## Binding the Owner Resolver
 
@@ -52,7 +50,7 @@ When `owner.enabled` is `true`:
 
 1. All queries on `Shipment`, `ShippingZone`, `ShippingRate`, and `ReturnAuthorization` are automatically scoped to the resolved owner
 2. New records get `owner_type` / `owner_id` set automatically (`auto_assign_on_create`)
-3. If the owner cannot be resolved, queries fail closed (return zero rows)
+3. If the owner cannot be resolved, the query throws `NoCurrentOwnerException` rather than returning rows
 4. Filament Resources enforce the same scoping server-side — UI filters are not the boundary
 
 ## Owner-Scoped Models
@@ -61,28 +59,32 @@ When `owner.enabled` is `true`:
 |-------|--------------|
 | `Shipment` | `owner_type`, `owner_id` |
 | `ShippingZone` | `owner_type`, `owner_id` |
-| `ShippingRate` | scoped via `zone` |
+| `ShippingRate` | no owner columns — scoped through its `zone` |
 | `ReturnAuthorization` | `owner_type`, `owner_id` |
 
 ## Global Records
 
-Shipping zones with `owner_id = null` are treated as shared/platform-wide zones. The default does **not** include global records in queries (`include_global = false`). To include them:
+`owner_type = null` / `owner_id = null` means **global-only** — it never means "all owners".
+A shipping zone with a null owner is invisible to a plain owner-scoped read and only appears
+when a query opts in with `include_global` (default `false`):
 
 ```php
 use AIArmada\Shipping\Models\ShippingZone;
 
 $zones = ShippingZone::forOwner($owner, includeGlobal: true)->get();
+
+// Global zones only
+$platformZones = ShippingZone::globalOnly()->get();
 ```
 
-<Aside variant="info">
-  `include_global` can be set via `SHIPPING_OWNER_INCLUDE_GLOBAL` or directly in `config/shipping.php`. Enable it if your deployment uses platform-wide shared zones.
-</Aside>
+> **info**
+> `include_global` is driven by `SHIPPING_OWNER_INCLUDE_GLOBAL` (default `false`). Set it in `.env` or directly in `config/shipping.php` if your deployment uses platform-wide shared zones.
 
 ## Querying with Owner Scope
 
 ```php
 use AIArmada\Shipping\Models\Shipment;
-use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\Shipping\Models\ShippingZone;
 use AIArmada\Shipping\States\Shipped;
 
 // Automatically scoped (global scope applied)
@@ -97,6 +99,9 @@ $zones = ShippingZone::forOwner($tenant, includeGlobal: true)->get();
 // System-level bypass (background jobs only)
 $all = Shipment::withoutOwnerScope()->get();
 ```
+
+> **warning**
+> With owner mode enabled, an unresolved owner **throws** `NoCurrentOwnerException` via `OwnerContext::assertResolvedOrExplicitGlobal()` — it does not quietly return zero rows. Wrap the work in `OwnerContext::withOwner($owner, ...)` (or `withOwner(null, ...)` for explicit global work).
 
 ## Background Jobs and Commands
 
@@ -114,7 +119,8 @@ class GenerateShippingManifestJob implements ShouldQueue
 
     public function handle(): void
     {
-        $owner = $this->ownerType::find($this->ownerId);
+        // Verify the owner row exists; never trust a bare payload tuple
+        $owner = OwnerContext::fromTypeAndIdOrFail($this->ownerType, $this->ownerId);
 
         OwnerContext::withOwner($owner, function (): void {
             $shipments = Shipment::query()

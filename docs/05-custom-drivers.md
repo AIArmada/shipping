@@ -16,11 +16,11 @@ All drivers must implement `ShippingDriverInterface`:
 namespace AIArmada\Shipping\Contracts;
 
 use AIArmada\Shipping\Data\AddressData;
+use AIArmada\Shipping\Data\CarrierOperationResult;
 use AIArmada\Shipping\Data\LabelData;
 use AIArmada\Shipping\Data\PackageData;
 use AIArmada\Shipping\Data\RateQuoteData;
 use AIArmada\Shipping\Data\ShipmentData;
-use AIArmada\Shipping\Data\CarrierOperationResult;
 use AIArmada\Shipping\Data\ShippingMethodData;
 use AIArmada\Shipping\Data\TrackingData;
 use AIArmada\Shipping\Enums\DriverCapability;
@@ -29,7 +29,7 @@ use Illuminate\Support\Collection;
 interface ShippingDriverInterface
 {
     /**
-     * Get the unique carrier code.
+     * Get unique carrier identifier.
      */
     public function getCarrierCode(): string;
 
@@ -39,20 +39,22 @@ interface ShippingDriverInterface
     public function getCarrierName(): string;
 
     /**
-     * Check if driver supports a capability.
+     * Check if carrier supports a specific capability.
      */
     public function supports(DriverCapability $capability): bool;
 
     /**
      * Get available shipping methods for this carrier.
+     *
      * @return Collection<int, ShippingMethodData>
      */
     public function getAvailableMethods(): Collection;
 
     /**
-     * Get rate quotes.
-     * @param PackageData[] $packages
-     * @param array<string, mixed> $options
+     * Get rate quotes for a shipment.
+     *
+     * @param  array<PackageData>  $packages
+     * @param  array<string, mixed>  $options
      * @return Collection<int, RateQuoteData>
      */
     public function getRates(
@@ -68,18 +70,19 @@ interface ShippingDriverInterface
     public function createShipment(ShipmentData $data): CarrierOperationResult;
 
     /**
-     * Cancel a shipment with the carrier.
+     * Cancel a shipment. Return a CarrierOperationResult, not a bool.
      */
     public function cancelShipment(string $trackingNumber): CarrierOperationResult;
 
     /**
-     * Generate shipping label.
-     * @param array<string, mixed> $options
+     * Generate shipping label. Non-nullable, and keyed on the tracking number.
+     *
+     * @param  array<string, mixed>  $options
      */
     public function generateLabel(string $trackingNumber, array $options = []): LabelData;
 
     /**
-     * Track a shipment.
+     * Track a shipment. Non-nullable — return an unknown/last-known state instead of null.
      */
     public function track(string $trackingNumber): TrackingData;
 
@@ -95,6 +98,15 @@ interface ShippingDriverInterface
 }
 ```
 
+> **warning**
+> There is no `getName()` and no `getCapabilities()`. Use `getCarrierName()`, and expose
+> capabilities through `supports(DriverCapability)` — the 12 `DriverCapability` cases are
+> `RateQuotes`, `LabelGeneration`, `Tracking`, `Webhooks`, `Returns`, `AddressValidation`,
+> `PickupScheduling`, `CashOnDelivery`, `BatchOperations`, `InsuranceClaims`,
+> `MultiPackage`, `InternationalShipping`.
+>
+> `AddressValidationResult` lives in `AIArmada\Shipping\Contracts`, not `...\Data`.
+
 ## Example: J&T Express Driver
 
 ```php
@@ -107,11 +119,11 @@ namespace App\Shipping\Drivers;
 use AIArmada\Shipping\Contracts\AddressValidationResult;
 use AIArmada\Shipping\Contracts\ShippingDriverInterface;
 use AIArmada\Shipping\Data\AddressData;
+use AIArmada\Shipping\Data\CarrierOperationResult;
 use AIArmada\Shipping\Data\LabelData;
 use AIArmada\Shipping\Data\PackageData;
 use AIArmada\Shipping\Data\RateQuoteData;
 use AIArmada\Shipping\Data\ShipmentData;
-use AIArmada\Shipping\Data\CarrierOperationResult;
 use AIArmada\Shipping\Data\ShippingMethodData;
 use AIArmada\Shipping\Data\TrackingData;
 use AIArmada\Shipping\Data\TrackingEventData;
@@ -125,7 +137,9 @@ use Illuminate\Support\Facades\Http;
 class JntShippingDriver implements ShippingDriverInterface
 {
     protected PendingRequest $client;
-    protected RetryService $retry;
+
+    /** @var array<int, DriverCapability> */
+    protected array $capabilities;
 
     public function __construct(
         protected readonly array $config
@@ -137,8 +151,16 @@ class JntShippingDriver implements ShippingDriverInterface
             ])
             ->timeout($this->config['timeout'] ?? 30);
 
-        $this->retry = RetryService::make()
-            ->attempts($this->config['retries'] ?? 3);
+        $this->capabilities = [
+            DriverCapability::RateQuotes,
+            DriverCapability::LabelGeneration,
+            DriverCapability::Tracking,
+            DriverCapability::AddressValidation,
+        ];
+
+        // RetryService takes no constructor arguments — it reads
+        // shipping.http.retries and shipping.http.base_delay_ms.
+        $this->retry = new RetryService();
     }
 
     public function getCarrierCode(): string
@@ -153,18 +175,14 @@ class JntShippingDriver implements ShippingDriverInterface
 
     public function supports(DriverCapability $capability): bool
     {
-        return in_array($capability, [
-            DriverCapability::RateQuotes,
-            DriverCapability::LabelGeneration,
-            DriverCapability::Tracking,
-        ], true);
+        return in_array($capability, $this->capabilities, true);
     }
 
     public function getAvailableMethods(): Collection
     {
         return collect([
-            new ShippingMethodData(code: 'standard', name: 'Standard Delivery', minDays: 3, maxDays: 5),
-            new ShippingMethodData(code: 'express', name: 'Express Delivery', minDays: 1, maxDays: 2),
+            new ShippingMethodData(code: 'jnt_standard', name: 'J&T Standard', maxDays: 5),
+            new ShippingMethodData(code: 'jnt_express', name: 'J&T Express', maxDays: 2),
         ]);
     }
 
@@ -180,14 +198,22 @@ class JntShippingDriver implements ShippingDriverInterface
         array $packages,
         array $options = []
     ): Collection {
+        // PackageData::$weight is already an int in grams — sum integers,
+        // never scale a float.
         $totalWeight = collect($packages)->sum(fn (PackageData $p) => $p->weight);
 
-        return $this->retry->execute(function () use ($destination, $totalWeight): Collection {
+        $quotes = $this->retry->execute(function () use ($origin, $destination, $totalWeight): array {
             $response = $this->client->post('/rates', [
+                'origin' => [
+                    'postcode' => $origin->postcode,
+                    'country' => $origin->country,
+                ],
                 'destination' => [
                     'postcode' => $destination->postcode,
                     'country' => $destination->country,
                 ],
+                // The carrier returns major units as a decimal string; convert
+                // with string math, not (int) ($x * 100).
                 'weight' => $totalWeight,
             ]);
 
@@ -195,103 +221,106 @@ class JntShippingDriver implements ShippingDriverInterface
                 throw new \RuntimeException('Failed to fetch J&T rates');
             }
 
-            return collect($response->json('rates'))->map(fn (array $rate) => RateQuoteData::from([
-                'carrier' => 'jnt',
-                'service' => $rate['service_code'],
-                'service_description' => $rate['service_name'],
-                'rate' => (int) ($rate['amount'] * 100), // Convert to cents
-                'currency' => 'MYR',
-                'estimated_days' => $rate['days_max'],
-            ]));
+            return $response->json('rates') ?? [];
         });
+
+        return collect($quotes)->map(fn (array $rate) => new RateQuoteData(
+            carrier: 'jnt',
+            service: (string) $rate['service_code'],
+            rate: (int) round(((float) $rate['amount']) * 100),
+            currency: 'MYR',
+            estimatedDays: (int) ($rate['days_min'] ?? $rate['days_max'] ?? 0),
+        ));
     }
 
     public function createShipment(ShipmentData $shipment): CarrierOperationResult
     {
-        return $this->retry->execute(function () use ($shipment): CarrierOperationResult {
+        /** @var array<string, mixed> $data */
+        $data = $this->retry->execute(function () use ($shipment): array {
             $response = $this->client->post('/shipments', [
+                'reference' => $shipment->reference,
                 'sender' => $this->formatAddress($shipment->origin),
                 'receiver' => $this->formatAddress($shipment->destination),
                 'service' => $shipment->serviceCode,
-                'weight' => $shipment->totalWeight,
+                // getTotalWeight() is a method, not a property
+                'weight' => $shipment->getTotalWeight(),
                 'items' => collect($shipment->items)->map(fn ($item) => [
                     'name' => $item->name,
                     'quantity' => $item->quantity,
-                ])->toArray(),
+                ])->all(),
             ]);
 
             if ($response->failed()) {
                 throw new \RuntimeException('Failed to create J&T shipment: ' . $response->body());
             }
 
-            $data = $response->json();
-
-            return CarrierOperationResult::succeeded(
-                trackingNumber: $data['tracking_number'],
-            );
+            return $response->json();
         });
-    }
 
-    public function track(string $trackingNumber): TrackingData
-    {
-        return $this->retry->execute(function () use ($trackingNumber): TrackingData {
-            $response = $this->client->get("/track/{$trackingNumber}");
-
-            if ($response->failed()) {
-                throw new \RuntimeException('Failed to track J&T shipment: ' . $trackingNumber);
-            }
-
-            $data = $response->json();
-
-            return TrackingData::from([
-                'tracking_number' => $trackingNumber,
-                'carrier' => 'jnt',
-                'status' => $this->mapStatus($data['status']),
-                'estimated_delivery' => $data['estimated_delivery'] ?? null,
-                'events' => collect($data['events'])->map(fn (array $event) => TrackingEventData::from([
-                    'code' => $event['status'],
-                    'timestamp' => $event['timestamp'],
-                    'normalized_status' => $this->mapStatus($event['status']),
-                    'description' => $event['description'],
-                    'location' => $event['location'] ?? null,
-                ]))->toArray(),
-            ]);
-        });
-    }
-
-    public function generateLabel(string $trackingNumber, array $options = []): LabelData
-    {
-        return $this->retry->execute(function () use ($trackingNumber): LabelData {
-            $response = $this->client->get("/labels/{$trackingNumber}");
-
-            if ($response->failed()) {
-                throw new \RuntimeException('Failed to generate J&T label: ' . $trackingNumber);
-            }
-
-            return LabelData::from([
-                'format' => 'pdf',
-                'content' => base64_encode($response->body()),
-                'tracking_number' => $trackingNumber,
-            ]);
-        });
+        return CarrierOperationResult::succeeded(
+            trackingNumber: $data['tracking_number'] ?? null,
+            carrierReference: $data['order_id'] ?? null,
+        );
     }
 
     public function cancelShipment(string $trackingNumber): CarrierOperationResult
     {
-        return $this->retry->execute(function () use ($trackingNumber): CarrierOperationResult {
-            $response = $this->client->delete("/shipments/{$trackingNumber}");
+        try {
+            $response = $this->retry->execute(fn () => $this->client->delete("/shipments/{$trackingNumber}"));
 
-            if ($response->failed()) {
-                return CarrierOperationResult::failed('Failed to cancel J&T shipment: ' . $trackingNumber);
-            }
+            return $response->successful()
+                ? CarrierOperationResult::succeeded(trackingNumber: $trackingNumber)
+                : CarrierOperationResult::failed('J&T rejected the cancellation');
+        } catch (\Throwable $e) {
+            return CarrierOperationResult::failed($e->getMessage(), retryable: true);
+        }
+    }
 
-            return CarrierOperationResult::succeeded(trackingNumber: $trackingNumber);
-        });
+    public function generateLabel(string $trackingNumber, array $options = []): LabelData
+    {
+        $response = $this->retry->execute(fn () => $this->client->get("/labels/{$trackingNumber}"));
+
+        return new LabelData(
+            format: 'pdf',
+            content: base64_encode($response->body()),
+            trackingNumber: $trackingNumber,
+        );
+    }
+
+    public function track(string $trackingNumber): TrackingData
+    {
+        $response = $this->retry->execute(fn () => $this->client->get("/track/{$trackingNumber}"));
+
+        if ($response->failed()) {
+            // Non-nullable return — report an unknown state rather than null
+            return new TrackingData(
+                trackingNumber: $trackingNumber,
+                status: TrackingStatus::LabelCreated,
+                events: collect(),
+            );
+        }
+
+        /** @var array<string, mixed> $data */
+        $data = $response->json();
+
+        return new TrackingData(
+            trackingNumber: $trackingNumber,
+            status: $this->mapStatus((string) $data['status']),
+            events: collect($data['events'] ?? [])->map(fn (array $event) => new TrackingEventData(
+                code: (string) ($event['code'] ?? $event['status']),
+                description: (string) $event['description'],
+                timestamp: CarbonImmutable::parse($event['timestamp']),
+                normalizedStatus: $this->mapStatus((string) $event['status']),
+                location: $event['location'] ?? null,
+            )),
+            carrier: 'jnt',
+        );
     }
 
     public function validateAddress(AddressData $address): AddressValidationResult
     {
-        // J&T doesn't provide address validation
+        // J&T doesn't provide address validation.
+        // Ctor: (bool $valid, ?AddressData $correctedAddress = null, array $warnings = [], array $errors = [])
         return new AddressValidationResult(valid: true);
     }
 
@@ -312,19 +341,37 @@ class JntShippingDriver implements ShippingDriverInterface
     protected function mapStatus(string $carrierStatus): TrackingStatus
     {
         return match ($carrierStatus) {
-            'CREATED' => TrackingStatus::LabelCreated,
-            'PENDING' => TrackingStatus::AwaitingPickup,
+            'CREATED', 'PENDING' => TrackingStatus::LabelCreated,
+            'AWAITING_PICKUP' => TrackingStatus::AwaitingPickup,
             'PICKED_UP' => TrackingStatus::PickedUp,
             'IN_TRANSIT' => TrackingStatus::InTransit,
+            'AT_FACILITY' => TrackingStatus::ArrivedAtFacility,
+            'DEPARTED_FACILITY' => TrackingStatus::DepartedFacility,
+            'IN_CUSTOMS' => TrackingStatus::InCustoms,
+            'CUSTOMS_CLEARED' => TrackingStatus::CustomsCleared,
             'OUT_FOR_DELIVERY' => TrackingStatus::OutForDelivery,
             'DELIVERED' => TrackingStatus::Delivered,
-            'EXCEPTION' => TrackingStatus::OnHold,
+            'SIGNED_FOR' => TrackingStatus::SignedFor,
+            'DELIVERY_FAILED' => TrackingStatus::DeliveryAttemptFailed,
+            'ADDRESS_ISSUE' => TrackingStatus::AddressIssue,
+            'REFUSED' => TrackingStatus::CustomerRefused,
+            'DAMAGED' => TrackingStatus::Damaged,
+            'LOST' => TrackingStatus::Lost,
+            'DELAYED' => TrackingStatus::Delayed,
+            'ON_HOLD' => TrackingStatus::OnHold,
             'RETURNED' => TrackingStatus::ReturnToSender,
-            default => TrackingStatus::OnHold,
+            default => TrackingStatus::LabelCreated,
         };
     }
 }
 ```
+
+> **warning**
+> `TrackingStatus` has 24 cases. There is **no** `Pending`, `Exception`, `ReturnedToSender`,
+> or `Unknown` case — the return statuses are `ReturnToSender`, `ReturnInTransit`, and
+> `ReturnDelivered`, and exceptions are `DeliveryAttemptFailed`, `AddressIssue`,
+> `CustomerRefused`, `Damaged`, `Lost`, `Delayed`, `OnHold`. A `match` needs an explicit
+> default arm.
 
 ## Registering the Driver
 
@@ -387,17 +434,20 @@ class JntStatusMapper implements StatusMapperInterface
         return 'jnt';
     }
 
+    // One required parameter — there is no $eventDescription.
     public function map(string $carrierEventCode): TrackingStatus
     {
         return match ($carrierEventCode) {
-            '101', '102' => TrackingStatus::AwaitingPickup,
+            '101', '102' => TrackingStatus::LabelCreated,
+            '103' => TrackingStatus::AwaitingPickup,
             '201' => TrackingStatus::PickedUp,
             '301', '302', '303' => TrackingStatus::InTransit,
             '401' => TrackingStatus::OutForDelivery,
             '501' => TrackingStatus::Delivered,
+            // DeliveryFailed does not exist; DeliveryAttemptFailed is the case name
             '601', '602' => TrackingStatus::DeliveryAttemptFailed,
-            '701' => TrackingStatus::ReturnedToSender,
-            default => TrackingStatus::OnHold,
+            '701' => TrackingStatus::ReturnToSender,
+            default => TrackingStatus::LabelCreated,
         };
     }
 }
@@ -437,7 +487,7 @@ class MemberFreeShippingPolicy implements FreeShippingPolicyInterface
             return null;
         }
 
-        // Members get free shipping on orders above RM50
+        // Members get free shipping on orders above RM50 — 5000 minor units
         $threshold = 5000;
 
         if ($subtotal >= $threshold) {
@@ -456,7 +506,6 @@ class MemberFreeShippingPolicy implements FreeShippingPolicyInterface
     }
 }
 ```
-
 Register in a service provider:
 
 ```php
@@ -490,11 +539,14 @@ class B2BZoneResolutionStrategy implements ZoneResolutionStrategyInterface
 
     public function resolve(AddressData $address, Collection $candidates): Collection
     {
-        // Match zones that have a B2B tag or are flagged for business addresses
-        return $candidates->filter(fn (ShippingZone $zone) =>
-            ($zone->metadata['type'] ?? null) === 'b2b'
-            && $zone->matchesAddress($address)
-        );
+        // ShippingZone has no `metadata` column. Match on `type`
+        // (country|state|postcode|radius) plus the active flag, then let
+        // the model do the address comparison.
+        return $candidates
+            ->filter(fn (ShippingZone $zone) => $zone->active
+                && $zone->type === 'postcode'
+                && $zone->matchesAddress($address))
+            ->sortByDesc(fn (ShippingZone $zone) => $zone->priority);
     }
 }
 ```
@@ -527,18 +579,18 @@ test('jnt driver returns rates for malaysian address', function () {
         'api_key' => 'test-key',
     ]);
 
+    // AddressData requires name, phone, line1, and postcode — country defaults to 'MY'
     $origin = AddressData::from([
-        'name' => 'My Warehouse',
-        'phone' => '+60312345678',
-        'line1' => '123 Warehouse St',
-        'postcode' => '50000',
-        'country' => 'MY',
+        'name' => 'Warehouse',
+        'phone' => '0123456789',
+        'line1' => 'Lot 1',
+        'postcode' => '43000',
     ]);
 
     $destination = AddressData::from([
-        'name' => 'John Doe',
-        'phone' => '+60123456789',
-        'line1' => '456 Customer Ave',
+        'name' => 'Siti',
+        'phone' => '0123456789',
+        'line1' => 'Lot 2',
         'postcode' => '47800',
         'country' => 'MY',
     ]);
@@ -547,6 +599,7 @@ test('jnt driver returns rates for malaysian address', function () {
         PackageData::from(['weight' => 500]),
     ];
 
+    // getRates() takes origin, destination, packages, options
     $rates = $driver->getRates($origin, $destination, $packages);
 
     expect($rates)->not->toBeEmpty();
