@@ -32,18 +32,19 @@ This will publish the configuration file to `config/shipping.php`.
 php artisan migrate
 ```
 
-This creates the following tables (with configurable prefix, default `shipping_`):
+This creates the following tables (with configurable prefix via `SHIPPING_TABLE_PREFIX`, default none):
 
 | Table | Purpose |
 |-------|---------|
-| `shipping_shipments` | Main shipment records |
-| `shipping_shipment_items` | Line items within shipments |
-| `shipping_shipment_events` | Tracking events history |
-| `shipping_shipment_labels` | Generated shipping labels |
+| `shipments` | Main shipment records |
+| `shipment_items` | Line items within shipments |
+| `shipment_events` | Tracking events history |
+| `shipment_labels` | Generated shipping labels |
 | `shipping_zones` | Geographic shipping zones |
 | `shipping_rates` | Zone-based shipping rates |
-| `shipping_return_authorizations` | RMA records |
-| `shipping_return_authorization_items` | Return line items |
+| `return_authorizations` | RMA records |
+| `return_authorization_items` | Return line items |
+| `shipment_operations` | Carrier operation reconciliation |
 
 ## Publish Migrations (Optional)
 
@@ -64,9 +65,6 @@ SHIPPING_ORIGIN_CITY="Kuala Lumpur"
 SHIPPING_ORIGIN_STATE="Kuala Lumpur"
 SHIPPING_ORIGIN_POSTCODE="50000"
 SHIPPING_ORIGIN_COUNTRY="MY"
-
-# Default currency
-SHIPPING_CURRENCY=MYR
 ```
 
 ## Optional: Filament Integration
@@ -77,7 +75,7 @@ For admin panel integration:
 composer require aiarmada/filament-shipping
 ```
 
-See the [filament-shipping documentation](../filament-shipping/01-overview.md) for setup.
+See the [filament-shipping documentation](../../filament-shipping/docs/01-overview.md) for setup.
 
 ## Optional: Orders Integration
 
@@ -118,7 +116,7 @@ use AIArmada\Shipping\Facades\Shipping;
 
 // Get available drivers
 $drivers = Shipping::getAvailableDrivers();
-// Returns: ['null', 'manual', 'flat_rate']
+// Returns: ['manual', 'flat_rate', 'zone']
 
 // Get the default driver
 $driver = Shipping::driver();

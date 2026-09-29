@@ -122,7 +122,7 @@ packages/shipping/
 │   ├── Enums/                 # Status and type enumerations
 │   ├── Events/                # Domain events
 │   ├── Exceptions/            # Custom exceptions
-│   ├── Handlers/              # Integration handlers (Orders)
+│   ├── Integrations/          # Integration handlers (Orders)
 │   ├── Models/                # Eloquent models
 │   ├── Policies/              # Authorization policies
 │   ├── Services/              # Core business logic
@@ -138,6 +138,7 @@ packages/shipping/
     ├── 03-configuration.md    # Configuration reference
     ├── 04-usage.md            # Core usage patterns
     ├── 05-custom-drivers.md   # Custom drivers and extensions
+    ├── 06-multitenancy.md     # Multi-tenancy guide
     └── 99-troubleshooting.md  # Troubleshooting guide
 ```
 
@@ -159,7 +160,6 @@ packages/shipping/
 - PHP 8.4+
 - Laravel 13+
 - `aiarmada/commerce-support` package
-- `brick/money` for currency handling
 - `spatie/laravel-data` for DTOs
 
 ## Related Packages

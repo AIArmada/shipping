@@ -13,6 +13,7 @@ $tables = [
     'shipping_rates' => $tablePrefix . 'shipping_rates',
     'return_authorizations' => $tablePrefix . 'return_authorizations',
     'return_authorization_items' => $tablePrefix . 'return_authorization_items',
+    'shipment_operations' => $tablePrefix . 'shipment_operations',
 ];
 
 return [

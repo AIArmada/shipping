@@ -22,9 +22,9 @@ $shipment = CreateShipment::run(
         'reference' => 'ORD-123',
         'carrierCode' => 'manual',
         'serviceCode' => 'standard',
-        'origin' => $origin,
-        'destination' => $destination,
-        'items' => $items,
+        'origin' => [...],
+        'destination' => [...],
+        'items' => [...],
     ]),
 );
 
@@ -72,6 +72,7 @@ use AIArmada\Cart\Facades\Cart;
 
 Cart::setMetadata('shipping_address', [
     'name' => 'John Doe',
+    'phone' => '+60123456789',
     'line1' => '456 Customer Ave',
     'city' => 'Petaling Jaya',
     'state' => 'Selangor',
@@ -93,11 +94,12 @@ $total = Cart::total();
 use AIArmada\Shipping\Data\AddressData;
 use AIArmada\Shipping\Data\PackageData;
 
-// AddressData requires name, phone, line1 and postcode.
 $origin = AddressData::from([
     'name' => 'My Warehouse',
-    'phone' => '+60300000000',
+    'phone' => '+60312345678',
     'line1' => '123 Warehouse St',
+    'city' => 'Kuala Lumpur',
+    'state' => 'Kuala Lumpur',
     'postcode' => '50000',
     'country' => 'MY',
 ]);
@@ -106,10 +108,10 @@ $destination = AddressData::from([
     'name' => 'John Doe',
     'phone' => '+60123456789',
     'line1' => '456 Customer Ave',
-    'postcode' => '47800',
-    'country' => 'MY',
     'city' => 'Petaling Jaya',
     'state' => 'Selangor',
+    'postcode' => '47800',
+    'country' => 'MY',
 ]);
 
 $packages = [
@@ -155,12 +157,11 @@ use AIArmada\Shipping\Data\ShipmentItemData;
 $service = app(ShipmentService::class);
 
 $shipmentData = ShipmentData::from([
-    'reference' => 'ORD-123',
-    'carrierCode' => 'manual',
-    'serviceCode' => 'standard',
+    'carrier_code' => 'manual',
+    'service_code' => 'standard',
     'origin' => AddressData::from([
         'name' => 'My Warehouse',
-        'phone' => '+60300000000',
+        'phone' => '+60312345678',
         'line1' => '123 Warehouse St',
         'city' => 'Kuala Lumpur',
         'state' => 'Kuala Lumpur',
@@ -192,12 +193,9 @@ $shipment = $service->create($shipmentData);
 // Ship the shipment (transitions to Shipped)
 $shipment = $service->ship($shipment);
 
-// The shipment carries the carrier tracking number
+// The shipment carries the carrier result
 echo $shipment->tracking_number; // "JT1234567890"
 ```
-
-`ShipmentData` has no `total_weight` property — total weight is derived from the
-`items` and `packages` you pass via `getTotalWeight()`.
 
 ### Creating Shipment for an Order
 
@@ -213,8 +211,8 @@ $shipment = Shipment::create([
     'shippable_id' => $order->id,
     'carrier_code' => 'jnt',
     'service_code' => 'express',
-    'origin_address' => $originPayload,
-    'destination_address' => $destinationPayload,
+    'origin_address' => [...],
+    'destination_address' => [...],
     'status' => Draft::class,
     'total_weight' => 1500,
 ]);
@@ -243,16 +241,13 @@ use AIArmada\Shipping\Services\TrackingAggregator;
 
 $aggregator = app(TrackingAggregator::class);
 
-// Sync a single shipment
-$shipment = $aggregator->syncTracking($shipment);
+// Sync all shipments needing an update
+$shipments = $aggregator->getShipmentsNeedingUpdate();
+$results = $aggregator->syncBatch($shipments);
 
-// Sync a batch
-$results = $aggregator->syncBatch(
-    Shipment::whereIn('id', $ids)->get()
-);
-
-// Find shipments due for a sync
-$due = $aggregator->getShipmentsNeedingUpdate(limit: 100);
+// Sync specific shipments
+$shipments = Shipment::whereIn('id', $ids)->get();
+$results = $aggregator->syncBatch($shipments);
 ```
 
 ## Generating Labels
@@ -265,12 +260,11 @@ $service = app(ShipmentService::class);
 // Generate label for existing shipment
 $label = $service->generateLabel($shipment);
 
-echo $label->format;   // 'pdf' or 'zpl'
-echo $label->url;      // label URL
-echo $label->content;  // raw label content (base64 for binary formats)
+echo $label->format;  // 'pdf' or 'zpl'
+echo $label->content; // Base64-encoded label content
 
 // Save to disk
-file_put_contents('label.pdf', base64_decode((string) $label->content));
+file_put_contents('label.pdf', $label->getDecodedContent());
 ```
 
 ## Cancelling Shipments
@@ -296,6 +290,7 @@ use AIArmada\Shipping\Models\ShippingZone;
 // Country-based zone
 $zone = ShippingZone::create([
     'name' => 'Malaysia',
+    'code' => 'MY',
     'type' => 'country',
     'countries' => ['MY'],
     'active' => true,
@@ -304,6 +299,7 @@ $zone = ShippingZone::create([
 // State-based zone
 $zone = ShippingZone::create([
     'name' => 'West Malaysia',
+    'code' => 'MY-WEST',
     'type' => 'state',
     'countries' => ['MY'],
     'states' => ['Selangor', 'Kuala Lumpur', 'Penang'],
@@ -313,25 +309,20 @@ $zone = ShippingZone::create([
 // Postcode-based zone
 $zone = ShippingZone::create([
     'name' => 'Klang Valley',
+    'code' => 'MY-KLANG-VALLEY',
     'type' => 'postcode',
     'countries' => ['MY'],
-    'postcode_ranges' => '40000-48000, 50000-59999, 68000-68100',
+    'postcode_ranges' => [['from' => '40000', 'to' => '48000'], ['from' => '50000', 'to' => '59999']],
     'active' => true,
 ]);
 ```
 
-> **info**
-> `ShippingZone` fillable columns are `postcode_ranges` and `active` — not
-> `postcodes` / `is_active`. The migration defaults `active` to `true`.
-
 ### Adding Rates to Zones
-
-`ShippingRate` uses `calculation_type` (`flat`, `per_kg`, `per_item`,
-`percentage`, `table`), `method_code`, `per_unit_rate`,
-`estimated_days_min` / `estimated_days_max`, and `active`:
 
 ```php
 use AIArmada\Shipping\Models\ShippingRate;
+
+// Calculation types: 'flat', 'per_kg', 'per_item', 'percentage', 'table'
 
 // Flat rate
 $rate = $zone->rates()->create([
@@ -348,15 +339,17 @@ $rate = $zone->rates()->create([
 // Per-kg rate
 $rate = $zone->rates()->create([
     'name' => 'Heavy Items',
+    'method_code' => 'heavy',
     'calculation_type' => 'per_kg',
-    'base_rate' => 500,     // RM5.00 base
-    'per_unit_rate' => 200, // RM2.00 per kg
+    'base_rate' => 500,     // RM5.00 base (covers the first kg)
+    'per_unit_rate' => 200, // RM2.00 per additional kg
     'active' => true,
 ]);
 
 // Table-based rate (weight tiers)
 $rate = $zone->rates()->create([
     'name' => 'Tiered Shipping',
+    'method_code' => 'tiered',
     'calculation_type' => 'table',
     'base_rate' => 500, // Fallback rate
     'rate_table' => [
@@ -524,16 +517,16 @@ ReturnAuthorization::approved()->get();
 
 ## Shipment State Machine
 
-Shipments follow a state machine workflow (12 states, `src/States`):
+Shipments follow a state machine workflow:
 
 ```
-Draft → Pending → AwaitingPickup → Shipped → InTransit → OutForDelivery → Delivered
-                     ↓
-                 ExceptionStatus → DeliveryFailed → ReturnToSender
-                     ↓
-                 OnHold
-                     ↓
-                 Cancelled
+Draft → Pending → Shipped → InTransit → OutForDelivery → Delivered
+                    ↓
+                Exception → DeliveryFailed → ReturnToSender
+                    ↓
+                OnHold
+                    ↓
+                Cancelled
 ```
 
 Check status capabilities:

@@ -38,7 +38,7 @@ dd(Shipping::getAvailableDrivers());
    ```php
    $driver->supports(DriverCapability::RateQuotes);
    ```
-3. Enable the manual fallback in config:
+3. Enable fallback to the manual driver in config:
    ```php
    'rate_shopping' => [
        'fallback_to_manual' => true,
@@ -73,18 +73,14 @@ dd(Shipping::getAvailableDrivers());
 1. Manually trigger tracking sync:
    ```php
    use AIArmada\Shipping\Services\TrackingAggregator;
-
+   
    $aggregator = app(TrackingAggregator::class);
-
-   // Sync one shipment
-   $results = $aggregator->syncTracking($shipment);
-
-   // Or sync a batch
-   $results = $aggregator->syncBatch(Shipment::whereIn('id', $ids)->get());
+   $results = $aggregator->syncBatch($aggregator->getShipmentsNeedingUpdate());
+   dd($results);
    ```
 2. Check shipment age (old shipments stop syncing):
    ```php
-   config('shipping.tracking.max_tracking_age'); // Default 30 (days)
+   config('shipping.tracking.max_tracking_age'); // Default 30
    ```
 3. Verify carrier driver implements tracking:
    ```php
@@ -117,9 +113,9 @@ dd(Shipping::getAvailableDrivers());
    ```php
    // Correct
    Shipment::forOwner($owner)->get();
-   
+
    // Wrong - bypasses owner scope
-   Shipment::all();
+   Shipment::withoutOwnerScope()->get();
    ```
 
 ### Labels Not Generating
@@ -162,30 +158,19 @@ dd(Shipping::getAvailableDrivers());
    ```
 2. Verify zone configuration:
    - Country zones need correct ISO codes (e.g., 'MY', not 'Malaysia')
-   - Postcode ranges need proper formatting: '40000-48000, 50000-59999'
+   - Postcode ranges use `postcode_ranges` entries shaped like `['from' => '40000', 'to' => '48000']`
    - State names must match exactly
 
-### Table Rate Returns Zero
+### Table Rate Returns Unexpected Value
 
-**Cause**: The `rate_table` tiers do not cover the parcel weight, or
-`calculation_type` is not `table`.
+**Cause**: No tier matched, or the `rate_table` is empty.
 
-`ShippingRate::calculateTableRate()` matches a tier when
-`min_weight <= weightGrams <= max_weight` and falls back to `base_rate` when
-`rate_table` is null or empty.
-
-**Solution**: Make sure the tiers span the weights you ship, and that
-`calculation_type` is `table`:
-
-```php
-$rate->update([
-    'calculation_type' => 'table',
-    'rate_table' => [
-        ['min_weight' => 0, 'max_weight' => 500, 'rate' => 500],
-        ['min_weight' => 501, 'max_weight' => null, 'rate' => 800],
-    ],
-]);
-```
+**Solutions**:
+1. Check the tier bounds cover the package weight (weights are matched in grams):
+   ```php
+   $rate->rate_table; // e.g. [['min_weight' => 0, 'max_weight' => 500, 'rate' => 500], ...]
+   ```
+2. Note the fallback order: matching tier rate → last tier rate (when the weight exceeds all tiers) → `base_rate` (when the table is empty).
 
 ## Performance Issues
 
@@ -202,24 +187,21 @@ $rate->update([
 2. Enable rate caching:
    ```php
    'rate_shopping' => [
-       'cache_ttl' => 300, // seconds
+       'cache_ttl' => 300, // Seconds
    ],
    ```
 3. Limit carriers queried:
    ```php
    $engine = app(RateShoppingEngine::class);
-   $rates = $engine->getAllRates($origin, $destination, $packages);
+   $rates = $engine->getRatesFromCarriers(['jnt', 'poslaju'], $origin, $destination, $packages);
    ```
-
-Use `rate_shopping.carrier_priority` to influence selection; there is no
-`drivers:` argument on `getAllRates()`.
 
 ### Database Query Performance
 
 Add indexes for frequently filtered columns:
 
 ```php
-Schema::table('shipping_shipments', function (Blueprint $table) {
+Schema::table('shipments', function (Blueprint $table) {
     $table->index('status');
     $table->index('carrier_code');
     $table->index(['owner_type', 'owner_id']);
