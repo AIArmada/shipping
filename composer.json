@@ -9,7 +9,7 @@
   },
   "require": {
     "aiarmada/commerce-support": "self.version",
-    "php": "^8.4"
+    "php": "^8.5"
   },
   "suggest": {
     "aiarmada/cart": "Required for free shipping evaluation with cart subtotals",
