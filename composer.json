@@ -12,6 +12,7 @@
     "php": "^8.5"
   },
   "suggest": {
+    "aiarmada/addressing": "Validates destination shippability against per-country address profiles",
     "aiarmada/cart": "Required for free shipping evaluation with cart subtotals",
     "aiarmada/inventory": "Optional integration",
     "aiarmada/orders": "Required for order fulfillment handler integration"

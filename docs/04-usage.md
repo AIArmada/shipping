@@ -221,6 +221,25 @@ $shipment = Shipment::create([
 ]);
 ```
 
+### Destination shippability
+
+When `aiarmada/addressing` is installed, order fulfillment validates the
+destination against the country's address profile (required fields plus
+postcode shape) before creating the shipment. A destination missing its
+country-required fields fails fast with a `not shippable` error instead
+of silently matching the wrong zone:
+
+```php
+use AIArmada\Shipping\Support\DestinationAddressValidator;
+
+$violations = app(DestinationAddressValidator::class)->validate($destination);
+// [] when shippable — or when addressing is not installed (unchecked mode).
+```
+
+Rate quotes stay ungated: partial addresses are normal while the shopper
+is still typing. Gate quote-time checks explicitly with the validator
+when you need them.
+
 ## Tracking Shipments
 
 ### Single Shipment

@@ -18,6 +18,7 @@ use AIArmada\Shipping\Data\ShipmentItemData;
 use AIArmada\Shipping\Models\Shipment;
 use AIArmada\Shipping\Services\ShipmentService;
 use AIArmada\Shipping\ShippingManager;
+use AIArmada\Shipping\Support\DestinationAddressValidator;
 use DateTimeInterface;
 use Throwable;
 
@@ -84,6 +85,17 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
             // Get origin address - try inventory-aware location first
             $originAddress = $this->getOriginAddressForOrder($order, $shipmentData);
             $destinationAddress = $this->toShippingAddressData($shippingAddress, includeEmail: true);
+
+            $violations = app(DestinationAddressValidator::class)->validate($destinationAddress);
+
+            if ($violations !== []) {
+                return [
+                    'success' => false,
+                    'shipment_id' => null,
+                    'tracking_number' => null,
+                    'error' => 'Destination address is not shippable: ' . implode(' ', $violations),
+                ];
+            }
 
             $items = $order->items->map(fn ($item) => ShipmentItemData::from([
                 'name' => $item->name,
