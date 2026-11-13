@@ -14,7 +14,10 @@ final class RecalculateShipmentWeight
 
     public function handle(Shipment $shipment): Shipment
     {
-        $totalWeight = (int) $shipment->items()->sum(DB::raw('weight * quantity'));
+        $parcels = $shipment->metadata['packages'] ?? [];
+        $totalWeight = $parcels === []
+            ? (int) $shipment->items()->sum(DB::raw('weight * quantity'))
+            : array_sum(array_map(fn (array $parcel): int => $parcel['weight'] * $parcel['quantity'], $parcels));
 
         $shipment->update(['total_weight' => $totalWeight]);
 

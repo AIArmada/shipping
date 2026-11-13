@@ -9,18 +9,26 @@ use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Inventory\Integrations\FulfillmentLocationService;
 use AIArmada\Inventory\Models\InventoryLocation;
 use AIArmada\Inventory\Support\InventoryOwnerScope;
+use AIArmada\Orders\Actions\Concerns\AssertsOrderOwnerBoundary;
 use AIArmada\Orders\Contracts\FulfillmentHandler;
 use AIArmada\Orders\Models\Order;
+use AIArmada\Orders\Models\OrderItem;
+use AIArmada\Orders\Support\PackageUnit;
 use AIArmada\Shipping\Data\AddressData;
 use AIArmada\Shipping\Data\PackageData;
 use AIArmada\Shipping\Data\ShipmentData;
 use AIArmada\Shipping\Data\ShipmentItemData;
 use AIArmada\Shipping\Models\Shipment;
+use AIArmada\Shipping\Models\ShipmentItem;
 use AIArmada\Shipping\Services\ShipmentService;
 use AIArmada\Shipping\ShippingManager;
+use AIArmada\Shipping\States\Draft;
 use AIArmada\Shipping\Support\ComponentLines;
 use AIArmada\Shipping\Support\DestinationAddressValidator;
 use DateTimeInterface;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -35,6 +43,8 @@ use Throwable;
  */
 final class OrderFulfillmentHandler implements FulfillmentHandler
 {
+    use AssertsOrderOwnerBoundary;
+
     public function __construct(
         private readonly ShippingManager $shippingManager,
         private readonly ShipmentService $shipmentService,
@@ -72,6 +82,7 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
     public function createShipment(Order $order, array $shipmentData): array
     {
         try {
+            $this->assertOwnerBoundaryForMutation($order, __METHOD__);
             $shippingAddress = $order->primaryAddress('shipping');
 
             if ($shippingAddress === null) {
@@ -83,46 +94,102 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
                 ];
             }
 
-            // Get origin address - try inventory-aware location first
-            $originAddress = $this->getOriginAddressForOrder($order, $shipmentData);
             $destinationAddress = $this->toShippingAddressData($shippingAddress, includeEmail: true);
-
             $violations = app(DestinationAddressValidator::class)->validate($destinationAddress);
 
             if ($violations !== []) {
-                return [
-                    'success' => false,
-                    'shipment_id' => null,
-                    'tracking_number' => null,
-                    'error' => 'Destination address is not shippable: ' . implode(' ', $violations),
-                ];
+                throw new InvalidArgumentException('Destination address is not shippable: ' . implode(' ', $violations));
             }
 
-            $items = $this->shipmentItemsForOrder($order);
+            $shipment = DB::transaction(function () use ($order, $shipmentData, $destinationAddress): Shipment {
+                $order = $order->newQuery()->whereKey($order->getKey())->lockForUpdate()->firstOrFail();
+                $order->load('items');
 
-            $data = ShipmentData::from([
-                'reference' => $order->order_number,
-                'carrierCode' => $shipmentData['carrier'] ?? config('shipping.drivers.default', 'manual'),
-                'serviceCode' => $shipmentData['service'] ?? 'standard',
-                'origin' => $originAddress,
-                'destination' => $destinationAddress,
-                'items' => $items,
-                'declaredValue' => $order->grand_total,
-                'currency' => $order->currency,
-                'metadata' => [
-                    'order_id' => $order->id,
-                    'order_number' => $order->order_number,
-                ],
-            ]);
+                $hasPackages = $order->items->contains(fn ($item): bool => PackageUnit::componentsOf($item) !== []);
+                if ($hasPackages && ($order->isCanceled() || $order->isFinal())) {
+                    throw new InvalidArgumentException('This order can no longer ship package units.');
+                }
 
-            $shipment = $this->shipmentService->create(
-                $data,
-                $order->owner_id,
-                $order->owner_type,
-            );
+                $selection = $shipmentData['package_units'] ?? null;
+                if ($selection !== null && (! $hasPackages || ! is_array($selection) || $selection === [])) {
+                    throw new InvalidArgumentException('Select package units by order item and ordinal.');
+                }
 
-            $this->shipmentService->markPending($shipment);
-            $shipment = $this->shipmentService->ship($shipment);
+                $carrier = $shipmentData['carrier'] ?? config('shipping.drivers.default', 'manual');
+                $service = $shipmentData['service'] ?? 'standard';
+                $parcels = array_map(
+                    fn (array $parcel): PackageData => PackageData::from($parcel),
+                    $shipmentData['parcels'] ?? [],
+                );
+                $shipments = collect();
+                $reference = $order->order_number;
+
+                if ($hasPackages) {
+                    if ($selection !== null) {
+                        foreach ($selection as $itemId => &$ordinals) {
+                            if (! is_array($ordinals) || ! array_is_list($ordinals) || $ordinals === []
+                                || array_filter($ordinals, 'is_int') !== $ordinals
+                                || array_unique($ordinals) !== $ordinals
+                                || ! $order->items->contains(fn ($item): bool => $item->id === $itemId && PackageUnit::componentsOf($item) !== [])) {
+                                throw new InvalidArgumentException('Select package units by order item and ordinal.');
+                            }
+
+                            sort($ordinals);
+                        }
+                        unset($ordinals);
+                        ksort($selection);
+                    }
+
+                    $key = hash('sha256', json_encode($selection, JSON_THROW_ON_ERROR));
+                    $shipments = OrderShipmentUnits::forOrder($order)
+                        ->with('items')
+                        ->get();
+                    $previous = $shipments->first(fn (Shipment $shipment): bool => ($shipment->metadata['fulfillment_key'] ?? null) === $key);
+                    if ($previous instanceof Shipment) {
+                        return $previous->status instanceof Draft ? $this->shipmentService->markPending($previous) : $previous;
+                    }
+
+                    $reference .= '-' . str()->ulid();
+                }
+
+                $assigned = $shipments->flatMap(fn (Shipment $shipment) => $shipment->items)
+                    ->groupBy('order_item_id');
+                $items = $this->shipmentItemsForOrder($order, $selection, $assigned);
+                if ($hasPackages && $items === []) {
+                    throw new InvalidArgumentException('No unassigned items are available to ship.');
+                }
+
+                $data = new ShipmentData(
+                    reference: $reference,
+                    carrierCode: $carrier,
+                    serviceCode: $service,
+                    origin: $this->getOriginAddressForOrder($order, $shipmentData),
+                    destination: $destinationAddress,
+                    items: $items,
+                    packages: $parcels,
+                    declaredValue: $hasPackages ? $this->declaredValue($order, $items) : $order->grand_total,
+                    currency: $order->currency,
+                    metadata: [
+                        'order_id' => $order->id,
+                        'order_number' => $order->order_number,
+                        ...($hasPackages ? ['fulfillment_key' => $key] : []),
+                    ],
+                    shippableId: $order->id,
+                    shippableType: $order->getMorphClass(),
+                );
+
+                $shipment = $this->shipmentService->create($data, $order->owner_id, $order->owner_type);
+
+                return $hasPackages ? $this->shipmentService->markPending($shipment) : $shipment;
+            });
+
+            if ($shipment->shipped_at === null) {
+                if ($shipment->status instanceof Draft) {
+                    $shipment = $this->shipmentService->markPending($shipment);
+                }
+
+                $shipment = $this->shipmentService->ship($shipment);
+            }
 
             return [
                 'success' => true,
@@ -190,57 +257,85 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
     }
 
     /**
-     * @return array<int, ShipmentItemData>
+     * @param  array<string, list<int>>|null  $selection
+     * @param  Collection<string, Collection<int, ShipmentItem>>  $assigned
+     * @return list<ShipmentItemData>
      */
-    private function shipmentItemsForOrder(Order $order): array
+    private function shipmentItemsForOrder(Order $order, ?array $selection, Collection $assigned): array
     {
         $items = [];
 
         foreach ($order->items as $orderItem) {
-            $metadata = is_array($orderItem->metadata) ? $orderItem->metadata : [];
+            $metadata = $orderItem->metadata ?? [];
             if (($metadata['requires_shipping'] ?? true) === false) {
                 continue;
             }
 
-            $components = ComponentLines::expand(
-                ComponentLines::fromOrderItemMetadata($metadata),
-                (int) $orderItem->quantity,
-            );
+            $alreadyAssigned = $assigned->get($orderItem->id, collect());
+            $components = PackageUnit::componentsOf($orderItem);
 
             if ($components !== []) {
-                foreach ($components as $component) {
-                    if (! $component['requires_shipping']) {
-                        continue;
-                    }
+                $ordinals = $selection === null
+                    ? array_diff(range(1, $orderItem->quantity), $alreadyAssigned->pluck('package_unit_ordinal')->all())
+                    : ($selection[$orderItem->id] ?? []);
 
-                    $items[] = ShipmentItemData::from([
-                        'name' => $component['name'],
-                        'sku' => $component['sku'],
-                        'quantity' => $component['quantity'],
-                        'weight' => $component['weight'] ?? 0,
-                        // The parent order item remains the single commercial
-                        // sale line; component snapshots do not duplicate it.
-                        'declaredValue' => 0,
-                        'shippableItemId' => $component['inventoryable_id'],
-                        'shippableItemType' => $component['inventoryable_type'],
-                    ]);
+                foreach ($ordinals as $ordinal) {
+                    $unit = new PackageUnit($orderItem, $ordinal);
+
+                    foreach ($unit->components as $index => $component) {
+                        $items[] = new ShipmentItemData(
+                            name: $component['name'],
+                            quantity: $component['quantity'],
+                            sku: $component['sku'],
+                            weight: $component['weight'],
+                            declaredValue: 0,
+                            shippableItemId: $component['inventoryable_id'],
+                            shippableItemType: $component['inventoryable_type'],
+                            orderItemId: $orderItem->id,
+                            packageUnitOrdinal: $ordinal,
+                            packageComponentIndex: $index,
+                        );
+                    }
                 }
 
                 continue;
             }
 
-            $items[] = ShipmentItemData::from([
-                'name' => $orderItem->name,
-                'sku' => $orderItem->sku,
-                'quantity' => $orderItem->quantity,
-                'weight' => $metadata['weight'] ?? 100,
-                'declaredValue' => $orderItem->total,
-                'shippableItemId' => (string) ($orderItem->purchasable_id ?? $orderItem->getKey()),
-                'shippableItemType' => $orderItem->purchasable_type,
-            ]);
+            if ($selection !== null || $alreadyAssigned->isNotEmpty()) {
+                continue;
+            }
+
+            $items[] = new ShipmentItemData(
+                name: $orderItem->name,
+                quantity: $orderItem->quantity,
+                sku: $orderItem->sku,
+                weight: $metadata['weight'] ?? 100,
+                declaredValue: $orderItem->total,
+                shippableItemId: (string) ($orderItem->purchasable_id ?? $orderItem->getKey()),
+                shippableItemType: $orderItem->purchasable_type,
+                orderItemId: $orderItem->id,
+            );
         }
 
         return $items;
+    }
+
+    /** @param list<ShipmentItemData> $items */
+    private function declaredValue(Order $order, array $items): int
+    {
+        $value = 0;
+
+        foreach ($items as $item) {
+            if ($item->packageUnitOrdinal === null) {
+                $value += $item->declaredValue ?? 0;
+            } elseif ($item->packageComponentIndex === 0) {
+                /** @var OrderItem $orderItem */
+                $orderItem = $order->items->findOrFail($item->orderItemId);
+                $value += new PackageUnit($orderItem, $item->packageUnitOrdinal)->refundAmount();
+            }
+        }
+
+        return $value;
     }
 
     /**

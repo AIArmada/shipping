@@ -31,6 +31,8 @@ class ShipmentData extends Data
         public readonly bool $insuranceRequired = false,
         public readonly ?int $codAmount = null,
         public readonly array $metadata = [],
+        public readonly ?string $shippableId = null,
+        public readonly ?string $shippableType = null,
     ) {}
 
     public function getTotalWeight(): int

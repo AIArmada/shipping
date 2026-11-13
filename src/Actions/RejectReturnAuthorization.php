@@ -7,6 +7,7 @@ namespace AIArmada\Shipping\Actions;
 use AIArmada\Shipping\Models\ReturnAuthorization;
 use AIArmada\Shipping\States\ReturnAuthorizationState\RmaRejected;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 use Lorisleiva\Actions\Concerns\AsAction;
 use RuntimeException;
 
@@ -19,26 +20,29 @@ final class RejectReturnAuthorization
 
     public function handle(ReturnAuthorization $rma, string $reason, ?string $actorId = null): ReturnAuthorization
     {
-        if (! $rma->isPending()) {
-            throw new RuntimeException("Return authorization {$rma->rma_number} is not pending.");
-        }
+        return DB::transaction(function () use ($rma, $reason, $actorId): ReturnAuthorization {
+            $rma = ReturnAuthorization::query()->lockForUpdate()->findOrFail($rma->getKey());
+            if (! $rma->isPending()) {
+                throw new RuntimeException("Return authorization {$rma->rma_number} is not pending.");
+            }
 
-        $resolvedActorId = $actorId ?? (auth()->id() !== null ? (string) auth()->id() : null);
+            $resolvedActorId = $actorId ?? (auth()->id() !== null ? (string) auth()->id() : null);
 
-        $transitioned = $rma->status->transitionTo(RmaRejected::class);
+            $transitioned = $rma->status->transitionTo(RmaRejected::class);
 
-        if (! $transitioned instanceof ReturnAuthorization) {
-            throw new RuntimeException("Return authorization {$rma->rma_number} could not transition to rejected.");
-        }
+            if (! $transitioned instanceof ReturnAuthorization) {
+                throw new RuntimeException("Return authorization {$rma->rma_number} could not transition to rejected.");
+            }
 
-        $transitioned->update([
-            'rejected_at' => CarbonImmutable::now(),
-            'rejected_by' => $resolvedActorId,
-            'metadata' => array_merge($transitioned->metadata ?? [], [
-                'rejection_reason' => $reason,
-            ]),
-        ]);
+            $transitioned->update([
+                'rejected_at' => CarbonImmutable::now(),
+                'rejected_by' => $resolvedActorId,
+                'metadata' => array_merge($transitioned->metadata ?? [], [
+                    'rejection_reason' => $reason,
+                ]),
+            ]);
 
-        return $transitioned->refresh();
+            return $transitioned->refresh();
+        });
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\Shipping\Actions;
 
 use AIArmada\Shipping\Data\CarrierOperationResult;
+use AIArmada\Shipping\Enums\ShipmentOperationStatus;
 use AIArmada\Shipping\Events\ShipmentCancelled;
 use AIArmada\Shipping\Events\ShipmentStatusChanged;
 use AIArmada\Shipping\Exceptions\ShipmentNotCancellableException;
@@ -30,11 +31,18 @@ final class CancelShipment
 
     public function handle(Shipment $shipment, ?string $reason = null): Shipment
     {
-        $lockKey = "shipment:{$shipment->getKey()}:cancel";
+        $lockKey = "shipment:{$shipment->getKey()}:ship";
 
         return Cache::lock($lockKey, 30)->block(30, function () use ($shipment, $reason): Shipment {
+            $shipment->refresh();
             if (! $shipment->isCancellable()) {
                 throw new ShipmentNotCancellableException($shipment);
+            }
+
+            if ($shipment->items()->whereNotNull('package_unit_ordinal')->exists()
+                && $shipment->operations()->where('operation_type', 'create')
+                    ->whereIn('status', [ShipmentOperationStatus::Pending, ShipmentOperationStatus::Unknown, ShipmentOperationStatus::Succeeded])->exists()) {
+                throw new RuntimeException('Reconcile the carrier operation before canceling this package shipment.');
             }
 
             $driver = $this->shippingManager->driver($shipment->carrier_code);

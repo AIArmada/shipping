@@ -11,6 +11,7 @@ use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Shipping\States\ShipmentStatus;
 use Carbon\CarbonInterface;
+use DomainException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -23,6 +24,8 @@ use Spatie\ModelStates\HasStates;
 
 /**
  * @property string $id
+ * @property string|null $shippable_id
+ * @property string|null $shippable_type
  * @property string $ulid
  * @property string $reference
  * @property string $carrier_code
@@ -244,7 +247,17 @@ class Shipment extends Model implements Auditable
             }
         });
 
+        static::updating(function (Shipment $shipment): void {
+            if ($shipment->isDirty(['shippable_id', 'shippable_type']) && $shipment->items()->whereNotNull('package_unit_ordinal')->exists()) {
+                throw new DomainException('The order of a package shipment is immutable.');
+            }
+        });
+
         static::deleting(function (Shipment $shipment): void {
+            if ($shipment->shipped_at !== null && $shipment->items()->whereNotNull('package_unit_ordinal')->exists()) {
+                throw new DomainException('A shipped package unit cannot be deleted.');
+            }
+
             DB::transaction(function () use ($shipment): void {
                 foreach ([
                     ShipmentItem::class,

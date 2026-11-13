@@ -9,6 +9,7 @@ use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Shipping\Enums\ReturnReason;
+use AIArmada\Shipping\Integrations\PackageReturns;
 use AIArmada\Shipping\States\ReturnAuthorizationState\ReturnAuthorizationStatus;
 use AIArmada\Shipping\States\ReturnAuthorizationState\RmaApproved;
 use AIArmada\Shipping\States\ReturnAuthorizationState\RmaCancelled;
@@ -32,6 +33,8 @@ use Spatie\ModelStates\HasStates;
 /**
  * @property string $id
  * @property string $rma_number
+ * @property string|null $order_item_id
+ * @property int|null $package_unit_ordinal
  * @property string|null $original_shipment_id
  * @property string|null $order_reference
  * @property string|null $customer_id
@@ -197,8 +200,34 @@ class ReturnAuthorization extends Model implements Auditable
         return $query->whereState('status', RmaApproved::class);
     }
 
+    public function isPackageReturn(): bool
+    {
+        return $this->order_item_id !== null || $this->package_unit_ordinal !== null;
+    }
+
     protected static function booted(): void
     {
+        static::saving(function (ReturnAuthorization $rma): void {
+            if (! $rma->isPackageReturn() && $rma->getRawOriginal('package_unit_ordinal') === null) {
+                return;
+            }
+
+            if ($rma->exists && $rma->isDirty(['order_item_id', 'package_unit_ordinal', 'original_shipment_id', 'type'])) {
+                throw new DomainException('The original package unit is immutable.');
+            }
+
+            if ($rma->exists && $rma->isDirty('status')) {
+                $current = $rma->newQuery()->findOrFail($rma->id)->status;
+                if (! $current->equals($rma->getOriginal('status')) || ! $current->canTransitionTo($rma->status)) {
+                    throw new DomainException('Reload the package return before changing its status.');
+                }
+            }
+
+            if ($rma->isDirty('status') || ! $rma->exists) {
+                app(PackageReturns::class)->assertStatus($rma);
+            }
+        });
+
         static::creating(function (ReturnAuthorization $rma): void {
             if (empty($rma->rma_number)) {
                 $rma->rma_number = static::generateRmaNumber();
@@ -206,6 +235,10 @@ class ReturnAuthorization extends Model implements Auditable
         });
 
         static::deleting(function (ReturnAuthorization $rma): void {
+            if ($rma->isPackageReturn() && ($rma->isReceived() || $rma->isCompleted())) {
+                throw new DomainException('A received package return cannot be deleted.');
+            }
+
             if ($rma->returnShipment()->exists()) {
                 throw new DomainException('A return authorization with a return shipment cannot be deleted.');
             }
@@ -220,6 +253,7 @@ class ReturnAuthorization extends Model implements Auditable
     {
         return [
             'status' => ReturnAuthorizationStatus::class,
+            'package_unit_ordinal' => 'integer',
             'approved_at' => 'immutable_datetime',
             'rejected_at' => 'immutable_datetime',
             'received_at' => 'immutable_datetime',

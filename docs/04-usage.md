@@ -460,6 +460,44 @@ Draft → Pending → Approved → Received → Completed
 | Cancelled | `RmaCancelled` | gray | Yes |
 | Expired | `RmaExpired` | warning | Yes |
 
+### Composite package units
+
+Fulfill a composite order by passing `package_units` to the order fulfillment handler. Each key is an order item ID and each value is a list of 1-based unit ordinals. Omit the selection to ship the remaining order items. Every selected unit uses the component composition frozen on the order and belongs to one shipment. A shipment can carry multiple parcels.
+
+```php
+use AIArmada\Orders\Contracts\FulfillmentHandler;
+use AIArmada\Orders\Services\OrderService;
+
+$result = app(FulfillmentHandler::class)->createShipment($order, [
+    'carrier' => 'manual',
+    'package_units' => [$orderItem->id => [1]],
+    'parcels' => [['weight' => 700], ['weight' => 300]],
+]);
+
+if ($result['success']) {
+    app(OrderService::class)->ship($order, 'Manual', $result['tracking_number'], $result['shipment_id']);
+}
+```
+
+The order reaches Shipped after every shippable line is fulfilled. Repeating a unit selection reuses its shipment. If the carrier outcome is unknown, reconcile the existing operation before retrying.
+
+Start a return from the original shipment. Approve the authorization, then submit the inspection for every return item. A missing component blocks receipt of the unit. Inspect damaged or defective items with their actual condition so they stay out of sellable stock.
+
+```php
+use AIArmada\Shipping\Actions\ApproveReturnAuthorization;
+use AIArmada\Shipping\Integrations\PackageReturns;
+
+$returns = app(PackageReturns::class);
+$rma = $returns->request($shipment, $orderItem->id, 1, 'damaged');
+$rma = ApproveReturnAuthorization::run($rma);
+$rma = $returns->receive($rma, $inspectionByReturnItemId, $receivingLocationId);
+$rma = $returns->complete($rma, $settledProviderTransactionId);
+```
+
+Each inspection entry has `quantity`, `condition`, and an optional `restock_quantity`. Unopened components default to sellable, and an inspector can record the sellable quantity for opened items or a component line with mixed conditions. Tracked components return to the original inventory identities. Inventory owner scoping requires an explicit receiving location. When using pending provider refunds, settle the refund first and call `complete($rma)`.
+
+The shipment item and return authorization create migrations define the unit identity columns. Install that schema before shipping or returning composite units.
+
 ### Creating an RMA
 
 ```php

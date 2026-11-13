@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace AIArmada\Shipping\Actions;
 
 use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\Orders\Models\Order;
+use AIArmada\Orders\Support\PackageUnit;
 use AIArmada\Shipping\Data\ShipmentData;
 use AIArmada\Shipping\Events\ShipmentCreated;
+use AIArmada\Shipping\Integrations\OrderShipmentUnits;
 use AIArmada\Shipping\Models\Shipment;
 use AIArmada\Shipping\States\Draft;
+use DomainException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Lorisleiva\Actions\Concerns\AsAction;
@@ -38,18 +42,27 @@ final class CreateShipment
 
             // The owner tuple is never mass-assignable: it is force-filled here only
             // after the mismatch guard above validated it against the context.
+            $metadata = $data->metadata;
+            unset($metadata['packages']);
+            if ($data->packages !== []) {
+                $metadata['packages'] = array_map(fn ($package): array => $package->toArray(), $data->packages);
+            }
+
             $shipment = new Shipment([
                 'reference' => $data->reference,
+                'shippable_id' => $data->shippableId,
+                'shippable_type' => $data->shippableType,
                 'carrier_code' => $data->carrierCode,
                 'service_code' => $data->serviceCode,
                 'status' => Draft::class,
                 'origin_address' => $data->origin->toArray(),
                 'destination_address' => $data->destination->toArray(),
                 'total_weight' => $data->getTotalWeight(),
+                'package_count' => $data->packages === [] ? 1 : array_sum(array_column($data->packages, 'quantity')),
                 'declared_value' => $data->declaredValue ?? 0,
                 'currency' => $data->currency ?? 'MYR',
                 'cod_amount' => $data->codAmount,
-                'metadata' => $data->metadata,
+                'metadata' => $metadata,
             ]);
 
             $shipment->forceFill([
@@ -75,11 +88,24 @@ final class CreateShipment
                     'origin_country' => $item->originCountry,
                     'shippable_item_id' => $item->shippableItemId,
                     'shippable_item_type' => $item->shippableItemType,
+                    'order_item_id' => $item->orderItemId,
+                    'package_unit_ordinal' => $item->packageUnitOrdinal,
+                    'package_component_index' => $item->packageComponentIndex,
                 ]);
             }
 
-            $totalWeight = $shipment->items()->sum(DB::raw('weight * quantity'));
-            $shipment->update(['total_weight' => $totalWeight]);
+            $order = $shipment->shippable;
+            $hasPackageLines = collect($data->items)->contains(fn ($item): bool => $item->packageUnitOrdinal !== null);
+            if ($hasPackageLines && ! $order instanceof Order) {
+                throw new DomainException('Package units require a shipment linked to their order.');
+            }
+
+            if ($order instanceof Order) {
+                $order = $order->newQuery()->lockForUpdate()->findOrFail($order->id);
+                if ($hasPackageLines || $order->items()->get()->contains(fn ($item): bool => PackageUnit::componentsOf($item) !== [])) {
+                    OrderShipmentUnits::assertComplete($shipment, $order);
+                }
+            }
 
             // Dispatch after commit so a rolled-back transaction cannot emit a
             // ghost waybill for a shipment that was never persisted.

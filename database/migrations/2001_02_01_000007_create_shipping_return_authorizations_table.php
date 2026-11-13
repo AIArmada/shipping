@@ -20,6 +20,8 @@ return new class extends Migration
 
             $table->string('rma_number')->unique();
             $table->foreignUuid('original_shipment_id')->nullable();
+            $table->foreignUuid('order_item_id')->nullable();
+            $table->unsignedInteger('package_unit_ordinal')->nullable();
 
             $table->string('order_reference')->nullable();
             $table->foreignUuid('customer_id')->nullable();
@@ -42,6 +44,7 @@ return new class extends Migration
             $table->timestampsTz();
 
             $table->index(['owner_id', 'owner_type', 'status'], $tableName . '_owner_status');
+            $table->index(['order_item_id', 'package_unit_ordinal'], $tableName . '_order_unit');
         });
 
         Schema::create($itemsTable, function (Blueprint $table) use ($itemsTable, $jsonType): void {
@@ -63,7 +66,6 @@ return new class extends Migration
             $table->timestampsTz();
 
             $table->index('return_authorization_id', $itemsTable . '_ra_id');
-            $table->unique(['return_authorization_id', 'sku'], $itemsTable . '_rma_sku_unique');
         });
     }
 };

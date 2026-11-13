@@ -19,6 +19,9 @@ return new class extends Migration
             $table->foreignUuid('shipment_id');
 
             $table->nullableUuidMorphs('shippable_item');
+            $table->foreignUuid('order_item_id')->nullable();
+            $table->unsignedInteger('package_unit_ordinal')->nullable();
+            $table->unsignedInteger('package_component_index')->nullable();
 
             $table->string('sku')->nullable();
             $table->string('name');
@@ -34,6 +37,7 @@ return new class extends Migration
             $table->timestampsTz();
 
             $table->index(['shipment_id', 'sku'], $tableName . '_shipment_sku');
+            $table->index(['order_item_id', 'package_unit_ordinal'], $tableName . '_order_unit');
         });
     }
 };
