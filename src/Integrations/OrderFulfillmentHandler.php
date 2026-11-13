@@ -18,6 +18,7 @@ use AIArmada\Shipping\Data\ShipmentItemData;
 use AIArmada\Shipping\Models\Shipment;
 use AIArmada\Shipping\Services\ShipmentService;
 use AIArmada\Shipping\ShippingManager;
+use AIArmada\Shipping\Support\ComponentLines;
 use AIArmada\Shipping\Support\DestinationAddressValidator;
 use DateTimeInterface;
 use Throwable;
@@ -97,13 +98,7 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
                 ];
             }
 
-            $items = $order->items->map(fn ($item) => ShipmentItemData::from([
-                'name' => $item->name,
-                'sku' => $item->sku,
-                'quantity' => $item->quantity,
-                'weight' => $item->metadata['weight'] ?? 100,
-                'declaredValue' => $item->total,
-            ]))->toArray();
+            $items = $this->shipmentItemsForOrder($order);
 
             $data = ShipmentData::from([
                 'reference' => $order->order_number,
@@ -160,12 +155,7 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
 
         $destination = $this->toShippingAddressData($shippingAddress);
 
-        $packages = [
-            PackageData::from([
-                'weight' => $this->calculateTotalWeight($order),
-                'declaredValue' => $order->grand_total,
-            ]),
-        ];
+        $packages = $this->packagesForOrder($order);
 
         $rates = [];
 
@@ -197,6 +187,173 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
         }
 
         return $rates;
+    }
+
+    /**
+     * @return array<int, ShipmentItemData>
+     */
+    private function shipmentItemsForOrder(Order $order): array
+    {
+        $items = [];
+
+        foreach ($order->items as $orderItem) {
+            $metadata = is_array($orderItem->metadata) ? $orderItem->metadata : [];
+            if (($metadata['requires_shipping'] ?? true) === false) {
+                continue;
+            }
+
+            $components = ComponentLines::expand(
+                ComponentLines::fromOrderItemMetadata($metadata),
+                (int) $orderItem->quantity,
+            );
+
+            if ($components !== []) {
+                foreach ($components as $component) {
+                    if (! $component['requires_shipping']) {
+                        continue;
+                    }
+
+                    $items[] = ShipmentItemData::from([
+                        'name' => $component['name'],
+                        'sku' => $component['sku'],
+                        'quantity' => $component['quantity'],
+                        'weight' => $component['weight'] ?? 0,
+                        // The parent order item remains the single commercial
+                        // sale line; component snapshots do not duplicate it.
+                        'declaredValue' => 0,
+                        'shippableItemId' => $component['inventoryable_id'],
+                        'shippableItemType' => $component['inventoryable_type'],
+                    ]);
+                }
+
+                continue;
+            }
+
+            $items[] = ShipmentItemData::from([
+                'name' => $orderItem->name,
+                'sku' => $orderItem->sku,
+                'quantity' => $orderItem->quantity,
+                'weight' => $metadata['weight'] ?? 100,
+                'declaredValue' => $orderItem->total,
+                'shippableItemId' => (string) ($orderItem->purchasable_id ?? $orderItem->getKey()),
+                'shippableItemType' => $orderItem->purchasable_type,
+            ]);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return array<int, PackageData>
+     */
+    private function packagesForOrder(Order $order): array
+    {
+        $packages = [];
+
+        foreach ($order->items as $orderItem) {
+            $metadata = is_array($orderItem->metadata) ? $orderItem->metadata : [];
+            if (($metadata['requires_shipping'] ?? true) === false) {
+                continue;
+            }
+
+            $components = ComponentLines::expand(
+                ComponentLines::fromOrderItemMetadata($metadata),
+                (int) $orderItem->quantity,
+            );
+
+            if ($components !== []) {
+                $declaredValue = (int) $orderItem->total;
+                $allocatedDeclaredValue = false;
+
+                foreach ($components as $component) {
+                    if (! $component['requires_shipping'] || $component['weight'] === null) {
+                        continue;
+                    }
+
+                    $weight = (int) $component['weight'] * (int) $component['quantity'];
+
+                    if ($weight <= 0) {
+                        continue;
+                    }
+
+                    $packages[] = PackageData::from([
+                        'weight' => $weight,
+                        'length' => $component['dimensions']['length'] ?? null,
+                        'width' => $component['dimensions']['width'] ?? null,
+                        'height' => $component['dimensions']['height'] ?? null,
+                        'declaredValue' => $allocatedDeclaredValue ? null : $declaredValue,
+                        'quantity' => 1,
+                    ]);
+
+                    $allocatedDeclaredValue = true;
+                }
+
+                continue;
+            }
+
+            $weight = (int) ($metadata['weight'] ?? 100);
+
+            if ($weight <= 0) {
+                continue;
+            }
+
+            $dimensions = ComponentLines::dimensions([
+                $metadata['dimensions'] ?? null,
+            ], $metadata);
+
+            $packages[] = PackageData::from([
+                'weight' => $weight * max(1, (int) $orderItem->quantity),
+                'length' => $dimensions['length'] ?? null,
+                'width' => $dimensions['width'] ?? null,
+                'height' => $dimensions['height'] ?? null,
+                'declaredValue' => $orderItem->total,
+                'quantity' => 1,
+            ]);
+        }
+
+        return $packages;
+    }
+
+    /**
+     * @return array<int, array{variant_id: string, quantity: int}>
+     */
+    private function fulfillmentItemsForOrder(Order $order): array
+    {
+        $items = [];
+
+        foreach ($order->items as $orderItem) {
+            $metadata = is_array($orderItem->metadata) ? $orderItem->metadata : [];
+            if (($metadata['requires_shipping'] ?? true) === false) {
+                continue;
+            }
+
+            $components = ComponentLines::expand(
+                ComponentLines::fromOrderItemMetadata($metadata),
+                (int) $orderItem->quantity,
+            );
+
+            if ($components !== []) {
+                foreach ($components as $component) {
+                    if (! $component['requires_shipping']) {
+                        continue;
+                    }
+
+                    $items[] = [
+                        'variant_id' => (string) ($component['inventoryable_id']),
+                        'quantity' => (int) $component['quantity'],
+                    ];
+                }
+
+                continue;
+            }
+
+            $items[] = [
+                'variant_id' => (string) $orderItem->purchasable_id,
+                'quantity' => (int) $orderItem->quantity,
+            ];
+        }
+
+        return $items;
     }
 
     private function toShippingAddressData(Address $address, bool $includeEmail = false): AddressData
@@ -308,15 +465,9 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
                 $fulfillmentService = app(FulfillmentLocationService::class);
 
                 if ($fulfillmentService !== null) {
-                    // Build items array from order
-                    $items = $order->items
-                        ->filter(fn ($item) => $item->metadata['requires_shipping'] ?? true)
-                        ->map(fn ($item) => [
-                            'variant_id' => $item->purchasable_id,
-                            'quantity' => $item->quantity,
-                        ])
-                        ->values()
-                        ->toArray();
+                    // Build actual sellable inventory requirements from the
+                    // frozen composition rather than the composite parent.
+                    $items = $this->fulfillmentItemsForOrder($order);
 
                     if ($items !== []) {
                         // If forced location, check it can fulfill
@@ -440,6 +591,34 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
      */
     private function calculateTotalWeight(Order $order): int
     {
-        return (int) $order->items->sum(fn ($item) => ($item->metadata['weight'] ?? 100) * $item->quantity);
+        $total = 0;
+
+        foreach ($order->items as $item) {
+            $metadata = is_array($item->metadata) ? $item->metadata : [];
+            if (($metadata['requires_shipping'] ?? true) === false) {
+                continue;
+            }
+
+            $components = ComponentLines::expand(
+                ComponentLines::fromOrderItemMetadata($metadata),
+                (int) $item->quantity,
+            );
+
+            if ($components !== []) {
+                foreach ($components as $component) {
+                    if (! $component['requires_shipping']) {
+                        continue;
+                    }
+
+                    $total += (int) ($component['weight'] ?? 0) * (int) $component['quantity'];
+                }
+
+                continue;
+            }
+
+            $total += (int) ($metadata['weight'] ?? 100) * (int) $item->quantity;
+        }
+
+        return $total;
     }
 }

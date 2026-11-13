@@ -12,6 +12,7 @@ use AIArmada\Shipping\Data\PackageData;
 use AIArmada\Shipping\Data\RateQuoteData;
 use AIArmada\Shipping\Services\FreeShippingEvaluator;
 use AIArmada\Shipping\Services\RateShoppingEngine;
+use AIArmada\Shipping\Support\ComponentLines;
 
 /**
  * Provides shipping conditions for the cart.
@@ -206,22 +207,78 @@ class ShippingConditionProvider implements ConditionProviderInterface
      */
     protected function cartToPackages(Cart $cart): array
     {
-        $totalWeight = 0;
+        $packages = [];
         $totalValue = 0;
 
         foreach ($cart->getItems() as $item) {
-            $weight = $item->getAttribute('weight') ?? 0;
-            $totalWeight += (int) ($weight * $item->quantity);
-            // Use getRawSubtotal() to get the integer cents value
             $totalValue += $item->getRawSubtotal();
+            $quantity = max(1, (int) $item->quantity);
+            $components = ComponentLines::fromCartItem($item);
+
+            if ($components !== []) {
+                $declaredValue = $item->getRawSubtotal();
+                $allocatedDeclaredValue = false;
+
+                foreach (ComponentLines::expand($components, $quantity) as $component) {
+                    if (! $component['requires_shipping'] || $component['weight'] === null) {
+                        continue;
+                    }
+
+                    $weight = (int) $component['weight'] * (int) $component['quantity'];
+
+                    if ($weight <= 0) {
+                        continue;
+                    }
+
+                    $packages[] = new PackageData(
+                        weight: $weight,
+                        length: $component['dimensions']['length'] ?? null,
+                        width: $component['dimensions']['width'] ?? null,
+                        height: $component['dimensions']['height'] ?? null,
+                        declaredValue: $allocatedDeclaredValue ? null : $declaredValue,
+                    );
+
+                    $allocatedDeclaredValue = true;
+                }
+
+                continue;
+            }
+
+            $attributes = [
+                'weight_grams' => $item->getAttribute('weight_grams'),
+                'weight' => $item->getAttribute('weight'),
+            ];
+
+            $weight = ComponentLines::grams([
+                $attributes['weight_grams'],
+                $attributes['weight'],
+            ]);
+
+            if ($weight === null) {
+                continue;
+            }
+
+            $dimensions = ComponentLines::dimensions([
+                $item->getAttribute('dimensions'),
+            ], [
+                'length_cm' => $item->getAttribute('length_cm'),
+                'width_cm' => $item->getAttribute('width_cm'),
+                'height_cm' => $item->getAttribute('height_cm'),
+            ]);
+
+            $packages[] = new PackageData(
+                weight: $weight * $quantity,
+                length: $dimensions['length'] ?? null,
+                width: $dimensions['width'] ?? null,
+                height: $dimensions['height'] ?? null,
+                declaredValue: $item->getRawSubtotal(),
+            );
         }
 
-        // For now, treat entire cart as single package
-        return [
-            new PackageData(
-                weight: $totalWeight,
-                declaredValue: $totalValue,
-            ),
-        ];
+        if ($packages === []) {
+            return [new PackageData(weight: 0, declaredValue: $totalValue)];
+        }
+
+        return $packages;
     }
 }
