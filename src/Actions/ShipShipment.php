@@ -54,7 +54,7 @@ final class ShipShipment
             }
 
             $order = $shipment->shippable;
-            if ($order instanceof Order && $order->items()->get()->contains(fn ($item): bool => PackageUnit::componentsOf($item) !== [])) {
+            if ($order instanceof Order && $order->items()->get()->contains(fn ($item): bool => PackageUnit::hasShippableComponents($item))) {
                 if ($order->isCanceled() || $order->isFinal()) {
                     throw new ShipmentCreationFailedException('This order can no longer ship package units.');
                 }

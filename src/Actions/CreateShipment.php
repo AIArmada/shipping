@@ -102,7 +102,7 @@ final class CreateShipment
 
             if ($order instanceof Order) {
                 $order = $order->newQuery()->lockForUpdate()->findOrFail($order->id);
-                if ($hasPackageLines || $order->items()->get()->contains(fn ($item): bool => PackageUnit::componentsOf($item) !== [])) {
+                if ($hasPackageLines || $order->items()->get()->contains(fn ($item): bool => PackageUnit::hasShippableComponents($item))) {
                     OrderShipmentUnits::assertComplete($shipment, $order);
                 }
             }

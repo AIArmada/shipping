@@ -283,6 +283,10 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
                     $unit = new PackageUnit($orderItem, $ordinal);
 
                     foreach ($unit->components as $index => $component) {
+                        if (! $component['requires_shipping']) {
+                            continue;
+                        }
+
                         $items[] = new ShipmentItemData(
                             name: $component['name'],
                             quantity: $component['quantity'],
@@ -324,15 +328,27 @@ final class OrderFulfillmentHandler implements FulfillmentHandler
     private function declaredValue(Order $order, array $items): int
     {
         $value = 0;
+        $countedUnits = [];
 
         foreach ($items as $item) {
             if ($item->packageUnitOrdinal === null) {
                 $value += $item->declaredValue ?? 0;
-            } elseif ($item->packageComponentIndex === 0) {
-                /** @var OrderItem $orderItem */
-                $orderItem = $order->items->findOrFail($item->orderItemId);
-                $value += new PackageUnit($orderItem, $item->packageUnitOrdinal)->refundAmount();
+
+                continue;
             }
+
+            // A mixed package can start with a non-shippable component.
+            // Count its declared value once, regardless of snapshot index.
+            $key = $item->orderItemId . ':' . $item->packageUnitOrdinal;
+
+            if (isset($countedUnits[$key])) {
+                continue;
+            }
+
+            /** @var OrderItem $orderItem */
+            $orderItem = $order->items->findOrFail($item->orderItemId);
+            $value += new PackageUnit($orderItem, $item->packageUnitOrdinal)->refundAmount();
+            $countedUnits[$key] = true;
         }
 
         return $value;

@@ -28,7 +28,7 @@ final class OrderShipmentUnits
 
     public static function hasActivePackageShipment(Order $order): bool
     {
-        if (! $order->items()->get()->contains(fn ($item): bool => PackageUnit::componentsOf($item) !== [])) {
+        if (! $order->items()->get()->contains(fn ($item): bool => PackageUnit::hasShippableComponents($item))) {
             return false;
         }
 
@@ -81,12 +81,15 @@ final class OrderShipmentUnits
      */
     public static function assertUnit(PackageUnit $unit, Collection $lines): Collection
     {
+        // Non-shipping components are fulfilled outside physical shipments.
+        // Preserve snapshot indices to prevent unit/index mismatches.
+        $shippable = array_filter($unit->components, static fn (array $component): bool => $component['requires_shipping']);
         $components = $lines->keyBy('package_component_index');
-        if ($lines->count() !== count($unit->components) || $components->count() !== $lines->count()) {
+        if ($lines->count() !== count($shippable) || $components->count() !== $lines->count()) {
             throw new DomainException('All components of a package unit must be in the same shipment.');
         }
 
-        foreach ($unit->components as $index => $component) {
+        foreach ($shippable as $index => $component) {
             $line = $components->get($index);
             if ($line === null || $line->quantity !== $component['quantity']
                 || $line->shippable_item_id !== $component['inventoryable_id']
