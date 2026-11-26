@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Support;
 
-use AIArmada\Addressing\Actions\ValidateAddressAction;
+use AIArmada\Addressing\Contracts\AddressValidator;
 use AIArmada\Addressing\Data\AddressData as AddressingAddressData;
 use AIArmada\Shipping\Data\AddressData;
 
@@ -26,11 +26,11 @@ final class DestinationAddressValidator
      */
     public function validate(AddressData $destination): array
     {
-        if (! class_exists(ValidateAddressAction::class)) {
+        if (! interface_exists(AddressValidator::class) || ! app()->bound(AddressValidator::class)) {
             return [];
         }
 
-        return app(ValidateAddressAction::class)->execute(AddressingAddressData::from([
+        return app(AddressValidator::class)->validate(AddressingAddressData::from([
             'line1' => $destination->line1,
             'line2' => $destination->line2,
             'city' => $destination->city,

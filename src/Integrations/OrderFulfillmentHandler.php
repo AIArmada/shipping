@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Integrations;
 
-use AIArmada\Addressing\Models\Address;
+use AIArmada\Addressing\Features\AddressLifecycle\Models\Address;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Inventory\Integrations\FulfillmentLocationService;
 use AIArmada\Inventory\Models\InventoryLocation;
