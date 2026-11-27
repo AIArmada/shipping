@@ -6,7 +6,7 @@ namespace AIArmada\Shipping\Cart;
 
 use AIArmada\Cart\Cart;
 use AIArmada\Cart\Conditions\CartCondition;
-use AIArmada\Cart\Contracts\ConditionProviderInterface;
+use AIArmada\Cart\Runtime\ConditionProviderInterface;
 use AIArmada\Shipping\Data\AddressData;
 use AIArmada\Shipping\Data\PackageData;
 use AIArmada\Shipping\Data\RateQuoteData;
