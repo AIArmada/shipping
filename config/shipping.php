@@ -36,7 +36,6 @@ return [
     'defaults' => [
         'currency' => 'MYR',
         'weight_unit' => 'g',
-        'reference_prefix' => env('SHIPPING_REFERENCE_PREFIX', 'SHP-'),
         'origin' => [
             'name' => env('SHIPPING_ORIGIN_NAME', env('APP_NAME', 'Store')),
             'phone' => env('SHIPPING_ORIGIN_PHONE', ''),
@@ -116,7 +115,7 @@ return [
     |--------------------------------------------------------------------------
     */
     'rate_shopping' => [
-        'strategy' => 'cheapest', // cheapest, fastest, preferred
+        'strategy' => 'cheapest', // cheapest, fastest, preferred, balanced
         'cache_ttl' => 300, // seconds
         'fallback_to_manual' => true,
         'concurrency_timeout' => 30, // seconds per carrier fan-out; process/fork drivers only
@@ -149,14 +148,4 @@ return [
         'max_tracking_age' => 30, // days to keep syncing
     ],
 
-    /*
-    |--------------------------------------------------------------------------
-    | HTTP
-    |--------------------------------------------------------------------------
-    */
-    'http' => [
-        'timeout' => env('SHIPPING_API_TIMEOUT', 30),
-        'retries' => env('SHIPPING_API_RETRIES', 3),
-        'base_delay_ms' => env('SHIPPING_API_BASE_DELAY_MS', 100),
-    ],
 ];

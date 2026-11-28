@@ -69,7 +69,7 @@ A shipping zone with a null owner is invisible to a plain owner-scoped read and 
 when a query opts in with `include_global` (default `false`):
 
 ```php
-use AIArmada\Shipping\Models\ShippingZone;
+use AIArmada\Shipping\Features\Rates\Models\ShippingZone;
 
 $zones = ShippingZone::forOwner($owner, includeGlobal: true)->get();
 
@@ -83,9 +83,9 @@ $platformZones = ShippingZone::globalOnly()->get();
 ## Querying with Owner Scope
 
 ```php
-use AIArmada\Shipping\Models\Shipment;
-use AIArmada\Shipping\Models\ShippingZone;
-use AIArmada\Shipping\States\Shipped;
+use AIArmada\Shipping\Features\Shipments\Models\Shipment;
+use AIArmada\Shipping\Features\Rates\Models\ShippingZone;
+use AIArmada\Shipping\Features\Shipments\States\Shipped;
 
 // Automatically scoped (global scope applied)
 $shipments = Shipment::query()->get();

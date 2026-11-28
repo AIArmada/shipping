@@ -47,7 +47,6 @@ return [
 'defaults' => [
     'currency' => 'MYR',
     'weight_unit' => 'g',
-    'reference_prefix' => env('SHIPPING_REFERENCE_PREFIX', 'SHP-'),
     'origin' => [
         'name' => env('SHIPPING_ORIGIN_NAME', env('APP_NAME', 'Store')),
         'phone' => env('SHIPPING_ORIGIN_PHONE', ''),
@@ -177,7 +176,7 @@ Zone candidates are owner-scoped via `forOwner()` with `shipping.features.owner.
 
 ```php
 use AIArmada\Shipping\Data\AddressData;
-use AIArmada\Shipping\Services\ShippingZoneResolver;
+use AIArmada\Shipping\Features\Rates\Queries\ShippingZoneResolver;
 
 $zone = app(ShippingZoneResolver::class)->resolve(
     AddressData::from([
@@ -195,7 +194,7 @@ $zone = app(ShippingZoneResolver::class)->resolve(
 
 ```php
 'rate_shopping' => [
-    'strategy' => 'cheapest', // cheapest, fastest, preferred
+    'strategy' => 'cheapest', // cheapest, fastest, preferred, balanced
     'cache_ttl' => 300, // seconds
     'fallback_to_manual' => true,
     'concurrency_timeout' => 30, // seconds per carrier fan-out; process/fork drivers only
@@ -214,7 +213,8 @@ $zone = app(ShippingZoneResolver::class)->resolve(
 |----------|-------------|
 | `cheapest` | Select the lowest cost option |
 | `fastest` | Select the fastest delivery option |
-| `preferred` | Use `carrier_priority`, falling back to the cheapest quote |
+| `preferred` | Use `carrier_priority`, choosing the lowest price within equal priority, falling back to the cheapest quote |
+| `balanced` | Balance estimated delivery days and price; optional `speed_weight` and `cost_weight` quote options |
 
 ## Free Shipping
 
@@ -240,7 +240,7 @@ from an address. The default `GeoZoneResolutionStrategy` matches by country, sta
 postcode. Register custom strategies in a service provider:
 
 ```php
-use AIArmada\Shipping\Support\ZoneResolutionStrategyRegistry;
+use AIArmada\Shipping\Platform\ZoneResolutionStrategyRegistry;
 use App\Shipping\Strategies\B2BZoneResolutionStrategy;
 
 $registry = app(ZoneResolutionStrategyRegistry::class);
@@ -256,7 +256,7 @@ The `FreeShippingPolicyRegistry` manages pluggable free-shipping evaluation poli
 `ThresholdFreeShippingPolicy` evaluates based on cart subtotal. Register custom policies in a service provider:
 
 ```php
-use AIArmada\Shipping\Support\FreeShippingPolicyRegistry;
+use AIArmada\Shipping\Platform\FreeShippingPolicyRegistry;
 use App\Shipping\Policies\MemberFreeShippingPolicy;
 
 $registry = app(FreeShippingPolicyRegistry::class);
@@ -272,15 +272,5 @@ $policy = $registry->get('threshold');
 'tracking' => [
     'sync_interval' => 3600, // 1 hour in seconds
     'max_tracking_age' => 30, // days to keep syncing
-],
-```
-
-## HTTP
-
-```php
-'http' => [
-    'timeout' => env('SHIPPING_API_TIMEOUT', 30), // seconds
-    'retries' => env('SHIPPING_API_RETRIES', 3),
-    'base_delay_ms' => env('SHIPPING_API_BASE_DELAY_MS', 100),
 ],
 ```

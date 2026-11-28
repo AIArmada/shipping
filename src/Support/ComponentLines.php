@@ -119,7 +119,7 @@ final class ComponentLines
             $normalized[] = (int) round((float) $value);
         }
 
-        if (count($normalized) !== 3 || in_array(0, $normalized, true)) {
+        if (count($normalized) !== 3 || min($normalized) <= 0) {
             return null;
         }
 

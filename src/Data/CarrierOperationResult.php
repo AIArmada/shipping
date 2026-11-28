@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Data;
 
-final class CarrierOperationResult
+final readonly class CarrierOperationResult
 {
     public function __construct(
-        public readonly bool $success,
-        public readonly bool $retryable = false,
-        public readonly bool $alreadyApplied = false,
-        public readonly ?string $trackingNumber = null,
-        public readonly ?string $carrierReference = null,
-        public readonly ?string $error = null,
-        public readonly ?string $outcomeType = null,
+        public bool $success,
+        public bool $retryable = false,
+        public bool $alreadyApplied = false,
+        public ?string $trackingNumber = null,
+        public ?string $carrierReference = null,
+        public ?string $error = null,
+        public ?string $outcomeType = null,
     ) {}
 
     public static function succeeded(?string $trackingNumber = null, ?string $carrierReference = null): self

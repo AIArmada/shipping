@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "name": "Returns",
+  "owns": {
+    "table:return_authorizations": [
+      "AIArmada\\Shipping\\Features\\Returns\\Actions\\ApproveReturnAuthorization",
+      "AIArmada\\Shipping\\Features\\Returns\\Actions\\RejectReturnAuthorization",
+      "AIArmada\\Shipping\\Features\\Returns\\Actions\\PackageReturns",
+      "AIArmada\\Shipping\\Features\\Returns\\Actions\\WriteReturnAuthorization"
+    ],
+    "table:return_authorization_items": [
+      "AIArmada\\Shipping\\Features\\Returns\\Actions\\PackageReturns",
+      "AIArmada\\Shipping\\Features\\Returns\\Actions\\WriteReturnAuthorization",
+      "AIArmada\\Shipping\\Features\\Returns\\Persistence\\DeleteReturnItems"
+    ]
+  },
+  "extensions": {}
+}

@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "name": "Shipments",
+  "owns": {
+    "table:shipments": [
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\ShipShipment",
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\CancelShipment",
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\UpdateShipmentStatus",
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\RecalculateShipmentWeight",
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\CreateShipment",
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\RecordTrackingEvent",
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\TrackingAggregator",
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\MarkStoredShipmentPickedUp",
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\WriteManualShipment"
+    ],
+    "table:shipment_events": [
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\ShipShipment",
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\CancelShipment",
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\UpdateShipmentStatus",
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\RecordTrackingEvent",
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\TrackingAggregator",
+      "AIArmada\\Shipping\\Features\\Shipments\\Persistence\\DeleteShipmentChildren"
+    ],
+    "table:shipment_labels": [
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\GenerateLabel",
+      "AIArmada\\Shipping\\Features\\Shipments\\Persistence\\DeleteShipmentChildren"
+    ],
+    "table:shipment_operations": [
+      "AIArmada\\Shipping\\Features\\Shipments\\Persistence\\DeleteShipmentChildren",
+      "AIArmada\\Shipping\\Features\\Shipments\\Persistence\\ShipmentOperationWriter"
+    ],
+    "table:shipment_items": [
+      "AIArmada\\Shipping\\Features\\Shipments\\Actions\\CreateShipment",
+      "AIArmada\\Shipping\\Features\\Shipments\\Persistence\\DeleteShipmentChildren"
+    ],
+    "store:shipping-batch-rate-limit": [
+      "AIArmada\\Shipping\\Features\\Shipments\\Persistence\\BatchRateLimiter"
+    ]
+  },
+  "extensions": {}
+}

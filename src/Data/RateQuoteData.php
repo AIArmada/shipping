@@ -6,26 +6,25 @@ namespace AIArmada\Shipping\Data;
 
 use AIArmada\CommerceSupport\Support\MoneyFormatter;
 use DateTimeInterface;
-use Spatie\LaravelData\Data;
 
 /**
  * Rate quote data from a carrier.
  */
-class RateQuoteData extends Data
+final readonly class RateQuoteData
 {
     public function __construct(
-        public readonly string $carrier,
-        public readonly string $service,
-        public readonly int $rate, // in cents
-        public readonly string $currency,
-        public readonly int $estimatedDays,
-        public readonly ?string $estimatedDeliveryDate = null,
-        public readonly ?string $serviceDescription = null,
-        public readonly ?array $restrictions = null,
-        public readonly bool $calculatedLocally = false,
-        public readonly ?string $quoteId = null,
-        public readonly ?DateTimeInterface $expiresAt = null,
-        public readonly ?string $note = null,
+        public string $carrier,
+        public string $service,
+        public int $rate, // in cents
+        public string $currency,
+        public int $estimatedDays,
+        public ?string $estimatedDeliveryDate = null,
+        public ?string $serviceDescription = null,
+        public ?array $restrictions = null,
+        public bool $calculatedLocally = false,
+        public ?string $quoteId = null,
+        public ?DateTimeInterface $expiresAt = null,
+        public ?string $note = null,
     ) {}
 
     public function withRate(int $rate): self
@@ -88,5 +87,11 @@ class RateQuoteData extends Data
     public function getIdentifier(): string
     {
         return "{$this->carrier}:{$this->service}";
+    }
+
+    /** @return array<string, mixed> */
+    public function toArray(): array
+    {
+        return array_replace(get_object_vars($this), ['expiresAt' => $this->expiresAt?->format(DATE_ATOM)]);
     }
 }

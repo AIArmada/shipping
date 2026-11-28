@@ -72,7 +72,7 @@ dd(Shipping::getAvailableDrivers());
 **Solutions**:
 1. Manually trigger tracking sync:
    ```php
-   use AIArmada\Shipping\Services\TrackingAggregator;
+   use AIArmada\Shipping\Features\Shipments\Actions\TrackingAggregator;
 
    $aggregator = app(TrackingAggregator::class);
 
@@ -147,7 +147,7 @@ dd(Shipping::getAvailableDrivers());
 **Solutions**:
 1. Debug zone resolution:
    ```php
-   use AIArmada\Shipping\Services\ShippingZoneResolver;
+   use AIArmada\Shipping\Features\Rates\Queries\ShippingZoneResolver;
    
    $resolver = app(ShippingZoneResolver::class);
    $zone = $resolver->resolve($address);
@@ -234,8 +234,8 @@ Enable detailed logging:
 ```php
 // In a service provider
 use Illuminate\Support\Facades\Log;
-use AIArmada\Shipping\Events\ShipmentCreated;
-use AIArmada\Shipping\Events\ShipmentStatusChanged;
+use AIArmada\Shipping\Features\Shipments\Events\ShipmentCreated;
+use AIArmada\Shipping\Features\Shipments\Events\ShipmentStatusChanged;
 
 Event::listen(ShipmentCreated::class, function ($event) {
     Log::info('Shipment created', ['id' => $event->shipment->id]);

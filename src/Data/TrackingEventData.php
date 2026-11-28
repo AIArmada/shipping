@@ -4,33 +4,31 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Data;
 
-use AIArmada\Shipping\Enums\TrackingStatus;
 use DateTimeInterface;
-use Spatie\LaravelData\Data;
 
 /**
  * A single tracking event.
  */
-class TrackingEventData extends Data
+final readonly class TrackingEventData
 {
     public function __construct(
-        public readonly string $code,
-        public readonly string $description,
-        public readonly DateTimeInterface $timestamp,
-        public readonly ?TrackingStatus $normalizedStatus = null,
-        public readonly ?string $location = null,
-        public readonly ?string $city = null,
-        public readonly ?string $state = null,
-        public readonly ?string $country = null,
-        public readonly ?array $raw = null,
+        public string $code,
+        public string $description,
+        public DateTimeInterface $timestamp,
+        public ?TrackingStatus $normalizedStatus = null,
+        public ?string $location = null,
+        public ?string $city = null,
+        public ?string $state = null,
+        public ?string $country = null,
+        public ?array $raw = null,
     ) {}
 
     public function getFormattedLocation(): string
     {
-        return collect([
+        return implode(', ', array_filter([
             $this->city,
             $this->state,
             $this->country,
-        ])->filter()->implode(', ');
+        ]));
     }
 }

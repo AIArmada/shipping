@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Contracts;
 
-use AIArmada\Shipping\Services\FreeShippingResult;
+use AIArmada\Shipping\Features\Rates\Api\FreeShippingResult;
 
 /**
  * Strategy for evaluating free shipping eligibility.

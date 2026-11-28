@@ -20,7 +20,7 @@ keywords:
 - Composer: `aiarmada/shipping`
 - Role: Carrier-agnostic shipping: shipments, zones, rates, labels, tracking, returns (Manager+drivers).
 - Triggers: shipping, shipment, carrier, zone, rate, label, return
-- Search first: `src/Models, src/Actions, src/Services, config, docs`
+- Search first: `src/Features/{Rates,Shipments,Returns,Reporting}, src/Contracts, src/Drivers, config, docs`
 - Related: `filament-shipping`, `jnt`, `orders`, `cart`
 - Paired: `filament-shipping` (Filament admin adapter)
 
@@ -44,8 +44,8 @@ keywords:
 
 ## Key surfaces
 - Models: `ReturnAuthorization`, `ReturnAuthorizationItem`, `Shipment`, `ShipmentEvent`, `ShipmentItem`, `ShipmentLabel`, `ShipmentOperation`, `ShippingRate`, `ShippingZone`
-- Actions/Services: `Actions/ApproveReturnAuthorization`, `Actions/CalculateShippingRate`, `Actions/CancelShipment`, `Actions/CreateShipment`, `Actions/GenerateLabel`, `Actions/ReconcileShipmentOperation`, `Actions/RecordTrackingEvent`, `Actions/RejectReturnAuthorization`
-- Config `shipping.php`: `database` (→ `table_prefix`, `json_column_type`, `tables.*`), `defaults` (→ `currency`, `weight_unit`, `reference_prefix`, `origin.*`), `features` (→ `owner.*`), `drivers` (→ `default`, `manual`, `flat_rate`, `zone`), `zone_resolution` (→ `strategy`), `rate_shopping` (→ `strategy`, `cache_ttl`, `fallback_to_manual`, `concurrency_timeout`, `circuit_failure_threshold`, `circuit_cooldown_seconds`, `carrier_priority`), `free_shipping` (→ `enabled`, `threshold`), `tracking` (→ `sync_interval`, `max_tracking_age`), `http` (→ `timeout`, `retries`, `base_delay_ms`)
+- Actions/Queries: `Features/Rates/Actions/{CalculateShippingRate,WriteRateConfiguration}`, `Features/Shipments/Actions/{CreateShipment,ShipShipment,CancelShipment,GenerateLabel,RecordTrackingEvent,ReconcileShipmentOperation,TrackingAggregator}`, `Features/Returns/Actions/{ApproveReturnAuthorization,RejectReturnAuthorization,PackageReturns}`
+- Config `shipping.php`: `database` (→ `table_prefix`, `json_column_type`, `tables.*`), `defaults` (→ `currency`, `weight_unit`, `origin.*`), `features` (→ `owner.*`), `drivers` (→ `default`, `manual`, `flat_rate`, `zone`), `zone_resolution` (→ `strategy`), `rate_shopping` (→ `strategy`, `cache_ttl`, `fallback_to_manual`, `concurrency_timeout`, `circuit_failure_threshold`, `circuit_cooldown_seconds`, `carrier_priority`), `free_shipping` (→ `enabled`, `threshold`), `tracking` (→ `sync_interval`, `max_tracking_age`)
 
 ## Docs map
 - Start: `01-overview` → `03-configuration` → `04-usage` → `99-troubleshooting`

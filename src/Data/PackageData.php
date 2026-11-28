@@ -4,21 +4,25 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Data;
 
-use Spatie\LaravelData\Data;
-
 /**
  * Package data for rate calculations.
  */
-class PackageData extends Data
+final readonly class PackageData
 {
+    /** @param array<string, mixed> $data */
+    public static function from(array $data): self
+    {
+        return new self(...$data);
+    }
+
     public function __construct(
-        public readonly int $weight, // in grams
-        public readonly ?int $length = null, // in cm
-        public readonly ?int $width = null,
-        public readonly ?int $height = null,
-        public readonly ?int $declaredValue = null, // in cents
-        public readonly ?string $packagingType = null,
-        public readonly int $quantity = 1,
+        public int $weight, // in grams
+        public ?int $length = null, // in cm
+        public ?int $width = null,
+        public ?int $height = null,
+        public ?int $declaredValue = null, // in cents
+        public ?string $packagingType = null,
+        public int $quantity = 1,
     ) {}
 
     public function getWeightKg(): float
@@ -44,5 +48,11 @@ class PackageData extends Data
         return $this->length !== null
             && $this->width !== null
             && $this->height !== null;
+    }
+
+    /** @return array<string, mixed> */
+    public function toArray(): array
+    {
+        return get_object_vars($this);
     }
 }

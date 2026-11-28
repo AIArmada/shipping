@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Contracts;
 
-use AIArmada\Shipping\Enums\TrackingStatus;
+use AIArmada\Shipping\Data\TrackingStatus;
 
 /**
  * Contract for carrier-specific status mappers.

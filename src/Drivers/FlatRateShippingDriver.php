@@ -8,16 +8,16 @@ use AIArmada\Shipping\Contracts\AddressValidationResult;
 use AIArmada\Shipping\Contracts\ShippingDriverInterface;
 use AIArmada\Shipping\Data\AddressData;
 use AIArmada\Shipping\Data\CarrierOperationResult;
+use AIArmada\Shipping\Data\DriverCapability;
 use AIArmada\Shipping\Data\LabelData;
 use AIArmada\Shipping\Data\RateQuoteData;
 use AIArmada\Shipping\Data\ShipmentData;
 use AIArmada\Shipping\Data\ShippingMethodData;
 use AIArmada\Shipping\Data\TrackingData;
 use AIArmada\Shipping\Data\TrackingEventData;
-use AIArmada\Shipping\Enums\DriverCapability;
-use AIArmada\Shipping\Enums\TrackingStatus;
+use AIArmada\Shipping\Data\TrackingStatus;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * Flat rate shipping driver with configurable rate tiers.
@@ -49,7 +49,7 @@ class FlatRateShippingDriver implements ShippingDriverInterface
         };
     }
 
-    public function getAvailableMethods(): Collection
+    public function getAvailableMethods(): array
     {
         $rates = $this->config['rates'] ?? [];
 
@@ -57,13 +57,19 @@ class FlatRateShippingDriver implements ShippingDriverInterface
             $rates = [];
         }
 
-        return collect($rates)->map(fn (array $rate, string $code) => new ShippingMethodData(
-            code: $code,
-            name: $rate['name'] ?? ucfirst($code),
-            minDays: $rate['estimated_days'] ?? 3,
-            maxDays: ($rate['estimated_days'] ?? 3) + 1,
-            trackingAvailable: false,
-        ));
+        $result = [];
+
+        foreach ($rates as $code => $rate) {
+            $result[] = new ShippingMethodData(
+                code: $code,
+                name: $rate['name'] ?? ucfirst($code),
+                minDays: $rate['estimated_days'] ?? 3,
+                maxDays: ($rate['estimated_days'] ?? 3) + 1,
+                trackingAvailable: false,
+            );
+        }
+
+        return $result;
     }
 
     public function getRates(
@@ -71,7 +77,7 @@ class FlatRateShippingDriver implements ShippingDriverInterface
         AddressData $destination,
         array $packages,
         array $options = []
-    ): Collection {
+    ): array {
         $rates = $this->config['rates'] ?? [];
 
         if (! is_array($rates)) {
@@ -79,20 +85,26 @@ class FlatRateShippingDriver implements ShippingDriverInterface
         }
         $currency = $this->config['currency'] ?? 'MYR';
 
-        return collect($rates)->map(fn (array $rate, string $code) => new RateQuoteData(
-            carrier: 'flat_rate',
-            service: $code,
-            rate: $rate['rate'] ?? 0,
-            currency: $currency,
-            estimatedDays: $rate['estimated_days'] ?? 3,
-            serviceDescription: $rate['name'] ?? ucfirst($code),
-            calculatedLocally: true,
-        ));
+        $result = [];
+
+        foreach ($rates as $code => $rate) {
+            $result[] = new RateQuoteData(
+                carrier: 'flat_rate',
+                service: $code,
+                rate: $rate['rate'] ?? 0,
+                currency: $currency,
+                estimatedDays: $rate['estimated_days'] ?? 3,
+                serviceDescription: $rate['name'] ?? ucfirst($code),
+                calculatedLocally: true,
+            );
+        }
+
+        return $result;
     }
 
     public function createShipment(ShipmentData $data): CarrierOperationResult
     {
-        return CarrierOperationResult::succeeded(trackingNumber: 'FLAT-' . mb_strtoupper(uniqid()));
+        return CarrierOperationResult::succeeded(trackingNumber: 'FLAT-' . (string) Str::ulid());
     }
 
     public function cancelShipment(string $trackingNumber): CarrierOperationResult
@@ -114,14 +126,14 @@ class FlatRateShippingDriver implements ShippingDriverInterface
         return new TrackingData(
             trackingNumber: $trackingNumber,
             status: TrackingStatus::AwaitingPickup,
-            events: collect([
+            events: [
                 new TrackingEventData(
                     code: 'FLAT',
                     description: 'Flat rate shipment - tracking not available',
                     timestamp: CarbonImmutable::now(),
                     normalizedStatus: TrackingStatus::AwaitingPickup,
                 ),
-            ]),
+            ],
             carrier: 'flat_rate',
         );
     }

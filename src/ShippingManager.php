@@ -7,11 +7,6 @@ namespace AIArmada\Shipping;
 use AIArmada\Shipping\Contracts\ShippingDriverInterface;
 use AIArmada\Shipping\Contracts\StatusMapperInterface;
 use AIArmada\Shipping\Data\AddressData;
-use AIArmada\Shipping\Drivers\FlatRateShippingDriver;
-use AIArmada\Shipping\Drivers\ManualShippingDriver;
-use AIArmada\Shipping\Drivers\NullShippingDriver;
-use AIArmada\Shipping\Drivers\ZoneBasedShippingDriver;
-use AIArmada\Shipping\Services\ShippingZoneResolver;
 use Closure;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\Collection;
@@ -189,11 +184,10 @@ class ShippingManager
             return $this->callCustomCreator($driver);
         }
 
-        // Check for built-in drivers (convert snake_case to PascalCase)
-        $method = 'create' . str_replace('_', '', ucwords($driver, '_')) . 'Driver';
+        $binding = 'shipping.driver.' . $driver;
 
-        if (method_exists($this, $method)) {
-            return $this->{$method}();
+        if ($this->container->bound($binding)) {
+            return $this->container->make($binding);
         }
 
         throw new InvalidArgumentException("Driver [{$driver}] not supported.");
@@ -205,44 +199,5 @@ class ShippingManager
     protected function callCustomCreator(string $driver): ShippingDriverInterface
     {
         return $this->customCreators[$driver]($this->container);
-    }
-
-    /**
-     * Create the null driver (for testing).
-     */
-    protected function createNullDriver(): ShippingDriverInterface
-    {
-        return new NullShippingDriver;
-    }
-
-    /**
-     * Create the manual shipping driver.
-     */
-    protected function createManualDriver(): ShippingDriverInterface
-    {
-        $config = $this->container->get('config')->get('shipping.drivers.manual', []);
-
-        return new ManualShippingDriver($config);
-    }
-
-    /**
-     * Create the flat rate shipping driver.
-     */
-    protected function createFlatRateDriver(): ShippingDriverInterface
-    {
-        $config = $this->container->get('config')->get('shipping.drivers.flat_rate', []);
-
-        return new FlatRateShippingDriver($config);
-    }
-
-    /**
-     * Create the zone-based shipping driver.
-     */
-    protected function createZoneDriver(): ShippingDriverInterface
-    {
-        $config = $this->container->get('config')->get('shipping.drivers.zone', []);
-        $resolver = $this->container->make(ShippingZoneResolver::class);
-
-        return new ZoneBasedShippingDriver($resolver, $config);
     }
 }

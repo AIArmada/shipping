@@ -8,16 +8,15 @@ use AIArmada\Shipping\Contracts\AddressValidationResult;
 use AIArmada\Shipping\Contracts\ShippingDriverInterface;
 use AIArmada\Shipping\Data\AddressData;
 use AIArmada\Shipping\Data\CarrierOperationResult;
+use AIArmada\Shipping\Data\DriverCapability;
 use AIArmada\Shipping\Data\LabelData;
 use AIArmada\Shipping\Data\RateQuoteData;
 use AIArmada\Shipping\Data\ShipmentData;
 use AIArmada\Shipping\Data\ShippingMethodData;
 use AIArmada\Shipping\Data\TrackingData;
 use AIArmada\Shipping\Data\TrackingEventData;
-use AIArmada\Shipping\Enums\DriverCapability;
-use AIArmada\Shipping\Enums\TrackingStatus;
+use AIArmada\Shipping\Data\TrackingStatus;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
@@ -41,9 +40,9 @@ class NullShippingDriver implements ShippingDriverInterface
         return true; // Everything "works" in the null driver
     }
 
-    public function getAvailableMethods(): Collection
+    public function getAvailableMethods(): array
     {
-        return collect([
+        return [
             new ShippingMethodData(
                 code: 'standard',
                 name: 'Standard Shipping',
@@ -56,7 +55,7 @@ class NullShippingDriver implements ShippingDriverInterface
                 minDays: 1,
                 maxDays: 2,
             ),
-        ]);
+        ];
     }
 
     public function getRates(
@@ -64,8 +63,8 @@ class NullShippingDriver implements ShippingDriverInterface
         AddressData $destination,
         array $packages,
         array $options = []
-    ): Collection {
-        return collect([
+    ): array {
+        return [
             new RateQuoteData(
                 carrier: 'null',
                 service: 'standard',
@@ -84,7 +83,7 @@ class NullShippingDriver implements ShippingDriverInterface
                 serviceDescription: 'Test Express Shipping',
                 calculatedLocally: true,
             ),
-        ]);
+        ];
     }
 
     public function createShipment(ShipmentData $data): CarrierOperationResult
@@ -115,14 +114,14 @@ class NullShippingDriver implements ShippingDriverInterface
         return new TrackingData(
             trackingNumber: $trackingNumber,
             status: TrackingStatus::InTransit,
-            events: collect([
+            events: [
                 new TrackingEventData(
                     code: 'TEST',
                     description: 'Test tracking event',
                     timestamp: CarbonImmutable::now(),
                     normalizedStatus: TrackingStatus::InTransit,
                 ),
-            ]),
+            ],
             carrier: 'null',
         );
     }

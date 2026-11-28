@@ -4,42 +4,47 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Data;
 
-use AIArmada\Shipping\Enums\TrackingStatus;
 use DateTimeInterface;
-use Illuminate\Support\Collection;
-use Spatie\LaravelData\Data;
 
 /**
  * Tracking data from a carrier.
  */
-class TrackingData extends Data
+final readonly class TrackingData
 {
     /**
-     * @param  Collection<int, TrackingEventData>  $events
+     * @param  list<TrackingEventData>  $events
      */
     public function __construct(
-        public readonly string $trackingNumber,
-        public readonly TrackingStatus $status,
-        public readonly Collection $events,
-        public readonly ?string $carrier = null,
-        public readonly ?DateTimeInterface $estimatedDelivery = null,
-        public readonly ?DateTimeInterface $deliveredAt = null,
-        public readonly ?string $signedBy = null,
-        public readonly ?string $currentLocation = null,
+        public string $trackingNumber,
+        public TrackingStatus $status,
+        public array $events,
+        public ?string $carrier = null,
+        public ?DateTimeInterface $estimatedDelivery = null,
+        public ?DateTimeInterface $deliveredAt = null,
+        public ?string $signedBy = null,
+        public ?string $currentLocation = null,
     ) {}
 
     public function isDelivered(): bool
     {
-        return $this->status->isTerminal() && $this->status === TrackingStatus::Delivered;
+        return $this->status->getCategory() === 'delivered';
     }
 
     public function hasEvents(): bool
     {
-        return $this->events->isNotEmpty();
+        return $this->events !== [];
     }
 
     public function getLatestEvent(): ?TrackingEventData
     {
-        return $this->events->first();
+        $latest = null;
+
+        foreach ($this->events as $event) {
+            if ($latest === null || $event->timestamp > $latest->timestamp) {
+                $latest = $event;
+            }
+        }
+
+        return $latest;
     }
 }

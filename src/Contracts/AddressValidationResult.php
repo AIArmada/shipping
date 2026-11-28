@@ -9,17 +9,17 @@ use AIArmada\Shipping\Data\AddressData;
 /**
  * Result of an address validation operation.
  */
-class AddressValidationResult
+final readonly class AddressValidationResult
 {
     /**
      * @param  array<string>  $warnings
      * @param  array<string>  $errors
      */
     public function __construct(
-        public readonly bool $valid,
-        public readonly ?AddressData $correctedAddress = null,
-        public readonly array $warnings = [],
-        public readonly array $errors = [],
+        public bool $valid,
+        public ?AddressData $correctedAddress = null,
+        public array $warnings = [],
+        public array $errors = [],
     ) {}
 
     public function isValid(): bool

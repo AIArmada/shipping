@@ -4,35 +4,44 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Data;
 
-use Spatie\LaravelData\Data;
-
 /**
  * Data for creating a shipment.
  */
-class ShipmentData extends Data
+final readonly class ShipmentData
 {
+    /** @param array<string, mixed> $data */
+    public static function from(array $data): self
+    {
+        $data['origin'] = $data['origin'] instanceof AddressData ? $data['origin'] : AddressData::from($data['origin']);
+        $data['destination'] = $data['destination'] instanceof AddressData ? $data['destination'] : AddressData::from($data['destination']);
+        $data['items'] = array_map(static fn (ShipmentItemData | array $item): ShipmentItemData => $item instanceof ShipmentItemData ? $item : ShipmentItemData::from($item), $data['items'] ?? []);
+        $data['packages'] = array_map(static fn (PackageData | array $package): PackageData => $package instanceof PackageData ? $package : PackageData::from($package), $data['packages'] ?? []);
+
+        return new self(...$data);
+    }
+
     /**
-     * @param  array<ShipmentItemData>  $items
-     * @param  array<PackageData>  $packages
+     * @param  list<ShipmentItemData>  $items
+     * @param  list<PackageData>  $packages
      * @param  array<string, mixed>  $metadata
      */
     public function __construct(
-        public readonly string $reference,
-        public readonly string $carrierCode,
-        public readonly string $serviceCode,
-        public readonly AddressData $origin,
-        public readonly AddressData $destination,
-        public readonly array $items = [],
-        public readonly array $packages = [],
-        public readonly ?int $declaredValue = null,
-        public readonly ?string $currency = null,
-        public readonly ?string $instructions = null,
-        public readonly bool $signatureRequired = false,
-        public readonly bool $insuranceRequired = false,
-        public readonly ?int $codAmount = null,
-        public readonly array $metadata = [],
-        public readonly ?string $shippableId = null,
-        public readonly ?string $shippableType = null,
+        public string $reference,
+        public string $carrierCode,
+        public string $serviceCode,
+        public AddressData $origin,
+        public AddressData $destination,
+        public array $items = [],
+        public array $packages = [],
+        public ?int $declaredValue = null,
+        public ?string $currency = null,
+        public ?string $instructions = null,
+        public bool $signatureRequired = false,
+        public bool $insuranceRequired = false,
+        public ?int $codAmount = null,
+        public array $metadata = [],
+        public ?string $shippableId = null,
+        public ?string $shippableType = null,
     ) {}
 
     public function getTotalWeight(): int
@@ -53,5 +62,16 @@ class ShipmentData extends Data
     public function isCashOnDelivery(): bool
     {
         return $this->codAmount !== null && $this->codAmount > 0;
+    }
+
+    /** @return array<string, mixed> */
+    public function toArray(): array
+    {
+        return array_replace(get_object_vars($this), [
+            'origin' => $this->origin->toArray(),
+            'destination' => $this->destination->toArray(),
+            'items' => array_map(static fn (ShipmentItemData $item): array => $item->toArray(), $this->items),
+            'packages' => array_map(static fn (PackageData $package): array => $package->toArray(), $this->packages),
+        ]);
     }
 }

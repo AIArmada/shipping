@@ -12,7 +12,7 @@ The `aiarmada/shipping` package provides the carrier-agnostic shipping and fulfi
 
 - Shipping manager, driver contracts, and driver resolution
 - Shipments, shipment items, shipment events, labels, shipping zones, shipping rates, and return authorizations
-- Rate shopping, status normalization, retry logic, and shipping strategy selection
+- Rate shopping, status normalization, and shipping strategy selection
 - Owner-aware shipment and shipping-configuration flows
 
 ## What this package does not own
@@ -38,7 +38,7 @@ The `aiarmada/shipping` package provides the carrier-agnostic shipping and fulfi
 - **Core surfaces** — `ShippingManager`, driver interface, rate shopping, label generation, tracking, returns, and strategy selection
 - **Handlers and services** — orders integration, rate caching, and fulfilment helpers
 - **Registries** — `ZoneResolutionStrategyRegistry`, `FreeShippingPolicyRegistry`
-- **Filament support** — `ShippingStatsAggregator` (in `aiarmada/filament-shipping`)
+- **Queries** — `AIArmada\Shipping\Features\Reporting\Api\DashboardStats` (used by `aiarmada/filament-shipping`)
 
 ## Owner scoping and security notes
 
@@ -115,20 +115,14 @@ packages/shipping/
 │   ├── factories/             # Model factories for testing
 │   └── migrations/            # Database migrations
 ├── src/
-│   ├── Actions/               # Action classes (CreateShipment, ShipShipment, etc.)
+│   ├── Features/              # Rates, Shipments, Returns, Reporting
 │   ├── Contracts/             # Interfaces and contracts
-│   ├── Data/                  # Spatie Laravel Data DTOs
+│   ├── Data/                  # Immutable DTOs
 │   ├── Drivers/               # Shipping driver implementations
 │   ├── Enums/                 # Status and type enumerations
-│   ├── Events/                # Domain events
 │   ├── Exceptions/            # Custom exceptions
-│   ├── Integrations/          # Integration handlers (Orders)
-│   ├── Models/                # Eloquent models
-│   ├── Policies/              # Authorization policies
-│   ├── Services/              # Core business logic
-│   ├── States/                # State machine classes
-│   ├── Strategies/            # Rate selection, zone resolution, free shipping strategies
-│   ├── Support/               # Helper classes, registries, owner scope
+│   ├── Platform/              # Feature discovery and registries
+│   ├── Support/               # Helper classes and owner scope
 │   ├── ShippingManager.php    # Main manager class
 │   ├── Facades/               # Facade class
 │   └── ShippingServiceProvider.php

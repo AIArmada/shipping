@@ -4,27 +4,31 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Data;
 
-use Spatie\LaravelData\Data;
-
 /**
  * Address data transfer object.
  */
-class AddressData extends Data
+final readonly class AddressData
 {
+    /** @param array<string, mixed> $data */
+    public static function from(array $data): self
+    {
+        return new self(...$data);
+    }
+
     public function __construct(
-        public readonly string $name,
-        public readonly string $phone,
-        public readonly string $line1,
-        public readonly string $postcode,
-        public readonly string $country = 'MY',
-        public readonly ?string $company = null,
-        public readonly ?string $email = null,
-        public readonly ?string $line2 = null,
-        public readonly ?string $city = null,
-        public readonly ?string $state = null,
-        public readonly ?float $latitude = null,
-        public readonly ?float $longitude = null,
-        public readonly bool $isResidential = true,
+        public string $name,
+        public string $phone,
+        public string $line1,
+        public string $postcode,
+        public string $country = 'MY',
+        public ?string $company = null,
+        public ?string $email = null,
+        public ?string $line2 = null,
+        public ?string $city = null,
+        public ?string $state = null,
+        public ?float $latitude = null,
+        public ?float $longitude = null,
+        public bool $isResidential = true,
     ) {}
 
     public function getFullAddress(): string
@@ -48,5 +52,11 @@ class AddressData extends Data
         }
 
         return $this->name;
+    }
+
+    /** @return array<string, mixed> */
+    public function toArray(): array
+    {
+        return get_object_vars($this);
     }
 }

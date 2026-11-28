@@ -8,11 +8,11 @@ The recommended entrypoint for shipment operations is the Action classes. Each A
 and supports both `::run()` (static) and `->handle()` (injected).
 
 ```php
-use AIArmada\Shipping\Actions\CreateShipment;
-use AIArmada\Shipping\Actions\ShipShipment;
-use AIArmada\Shipping\Actions\CancelShipment;
-use AIArmada\Shipping\Actions\GenerateLabel;
-use AIArmada\Shipping\Actions\RecordTrackingEvent;
+use AIArmada\Shipping\Features\Shipments\Actions\CreateShipment;
+use AIArmada\Shipping\Features\Shipments\Actions\ShipShipment;
+use AIArmada\Shipping\Features\Shipments\Actions\CancelShipment;
+use AIArmada\Shipping\Features\Shipments\Actions\GenerateLabel;
+use AIArmada\Shipping\Features\Shipments\Actions\RecordTrackingEvent;
 use AIArmada\Shipping\Data\ShipmentData;
 use AIArmada\Shipping\Data\TrackingEventData;
 
@@ -132,7 +132,7 @@ $rates = Shipping::driver('flat_rate')->getRates($origin, $destination, $package
 ### Rate Shopping (Best Rate)
 
 ```php
-use AIArmada\Shipping\Services\RateShoppingEngine;
+use AIArmada\Shipping\Features\Rates\Queries\RateShoppingEngine;
 
 $engine = app(RateShoppingEngine::class);
 
@@ -148,7 +148,7 @@ $allRates = $engine->getAllRates($origin, $destination, $packages);
 ### Using ShipmentService
 
 ```php
-use AIArmada\Shipping\Services\ShipmentService;
+use AIArmada\Shipping\Features\Shipments\Actions\ShipmentService;
 use AIArmada\Shipping\Data\ShipmentData;
 use AIArmada\Shipping\Data\AddressData;
 use AIArmada\Shipping\Data\ShipmentItemData;
@@ -203,8 +203,8 @@ echo $shipment->tracking_number; // "JT1234567890"
 ### Creating Shipment for an Order
 
 ```php
-use AIArmada\Shipping\Models\Shipment;
-use AIArmada\Shipping\States\Draft;
+use AIArmada\Shipping\Features\Shipments\Models\Shipment;
+use AIArmada\Shipping\Features\Shipments\States\Draft;
 use AIArmada\Orders\Models\Order;
 
 $order = Order::find($orderId);
@@ -230,9 +230,9 @@ country-required fields fails fast with a `not shippable` error instead
 of silently matching the wrong zone:
 
 ```php
-use AIArmada\Shipping\Support\DestinationAddressValidator;
+use AIArmada\Shipping\Features\Shipments\Api\ValidateDestination;
 
-$violations = app(DestinationAddressValidator::class)->validate($destination);
+$violations = app(ValidateDestination::class)->validate($destination);
 // [] when shippable — or when addressing is not installed (unchecked mode).
 ```
 
@@ -259,7 +259,7 @@ foreach ($trackingData->events as $event) {
 ### Bulk Tracking Sync
 
 ```php
-use AIArmada\Shipping\Services\TrackingAggregator;
+use AIArmada\Shipping\Features\Shipments\Actions\TrackingAggregator;
 
 $aggregator = app(TrackingAggregator::class);
 
@@ -278,7 +278,7 @@ $due = $aggregator->getShipmentsNeedingUpdate(limit: 100);
 ## Generating Labels
 
 ```php
-use AIArmada\Shipping\Services\ShipmentService;
+use AIArmada\Shipping\Features\Shipments\Actions\ShipmentService;
 
 $service = app(ShipmentService::class);
 
@@ -296,7 +296,7 @@ file_put_contents('label.pdf', $label->getDecodedContent());
 ## Cancelling Shipments
 
 ```php
-use AIArmada\Shipping\Services\ShipmentService;
+use AIArmada\Shipping\Features\Shipments\Actions\ShipmentService;
 
 $service = app(ShipmentService::class);
 
@@ -311,7 +311,7 @@ if ($shipment->isCancellable()) {
 ### Creating Zones
 
 ```php
-use AIArmada\Shipping\Models\ShippingZone;
+use AIArmada\Shipping\Features\Rates\Models\ShippingZone;
 
 // Country-based zone
 $zone = ShippingZone::create([
@@ -354,7 +354,7 @@ $zone = ShippingZone::create([
 `estimated_days_min` / `estimated_days_max`, and `active`:
 
 ```php
-use AIArmada\Shipping\Models\ShippingRate;
+use AIArmada\Shipping\Features\Rates\Models\ShippingRate;
 
 // Flat rate
 $rate = $zone->rates()->create([
@@ -398,7 +398,7 @@ $rate = $zone->rates()->create([
 ### Resolving Zones for Address
 
 ```php
-use AIArmada\Shipping\Services\ShippingZoneResolver;
+use AIArmada\Shipping\Features\Rates\Queries\ShippingZoneResolver;
 use AIArmada\Shipping\Data\AddressData;
 
 $resolver = app(ShippingZoneResolver::class);
@@ -420,7 +420,7 @@ $rates = $zone?->rates()->active()->get();
 ## Free Shipping Evaluation
 
 ```php
-use AIArmada\Shipping\Services\FreeShippingEvaluator;
+use AIArmada\Shipping\Features\Rates\Queries\FreeShippingEvaluator;
 
 $evaluator = app(FreeShippingEvaluator::class);
 
@@ -484,12 +484,13 @@ The order reaches Shipped after every shippable line is fulfilled. Repeating a u
 Start a return from the original shipment. Approve the authorization, then submit the inspection for every return item. A missing component blocks receipt of the unit. Inspect damaged or defective items with their actual condition so they stay out of sellable stock.
 
 ```php
-use AIArmada\Shipping\Actions\ApproveReturnAuthorization;
-use AIArmada\Shipping\Integrations\PackageReturns;
+use AIArmada\Shipping\Features\Returns\Api\ApproveReturn;
+use AIArmada\Shipping\Features\Returns\Actions\PackageReturns;
 
 $returns = app(PackageReturns::class);
-$rma = $returns->request($shipment, $orderItem->id, 1, 'damaged');
-$rma = ApproveReturnAuthorization::run($rma);
+$rma = $returns->request($shipment->id, $orderItem->id, 1, 'damaged');
+app(ApproveReturn::class)->execute($rma->id);
+$rma->refresh();
 $rma = $returns->receive($rma, $inspectionByReturnItemId, $receivingLocationId);
 $rma = $returns->complete($rma, $settledProviderTransactionId);
 ```
@@ -501,7 +502,7 @@ The shipment item and return authorization create migrations define the unit ide
 ### Creating an RMA
 
 ```php
-use AIArmada\Shipping\Models\ReturnAuthorization;
+use AIArmada\Shipping\Features\Returns\Models\ReturnAuthorization;
 use AIArmada\Shipping\Enums\ReturnReason;
 
 $rma = ReturnAuthorization::create([
@@ -530,7 +531,7 @@ New RMAs start in `RmaDraft` status.
 ### Submitting for Review
 
 ```php
-use AIArmada\Shipping\States\ReturnAuthorizationState\RmaPending;
+use AIArmada\Shipping\Features\Returns\States\RmaPending;
 
 $rma->status->transitionTo(RmaPending::class);
 ```
@@ -538,8 +539,8 @@ $rma->status->transitionTo(RmaPending::class);
 ### Approving or Rejecting
 
 ```php
-use AIArmada\Shipping\States\ReturnAuthorizationState\RmaApproved;
-use AIArmada\Shipping\States\ReturnAuthorizationState\RmaRejected;
+use AIArmada\Shipping\Features\Returns\States\RmaApproved;
+use AIArmada\Shipping\Features\Returns\States\RmaRejected;
 
 // Approve
 $rma->status->transitionTo(RmaApproved::class);
@@ -553,7 +554,7 @@ $rma->update(['rejected_at' => now(), 'rejected_by' => auth()->id()]);
 ### Marking as Received
 
 ```php
-use AIArmada\Shipping\States\ReturnAuthorizationState\RmaReceived;
+use AIArmada\Shipping\Features\Returns\States\RmaReceived;
 
 $rma->status->transitionTo(RmaReceived::class);
 $rma->update(['received_at' => now()]);
@@ -562,7 +563,7 @@ $rma->update(['received_at' => now()]);
 ### Completing the Return
 
 ```php
-use AIArmada\Shipping\States\ReturnAuthorizationState\RmaCompleted;
+use AIArmada\Shipping\Features\Returns\States\RmaCompleted;
 
 $rma->status->transitionTo(RmaCompleted::class);
 $rma->update(['completed_at' => now()]);
@@ -587,7 +588,7 @@ ReturnAuthorization::approved()->get();
 
 ## Shipment State Machine
 
-Shipments follow a state machine workflow (12 states, `src/States`):
+Shipments follow a state machine workflow (12 states, `src/Features/Shipments/States`):
 
 ```
 Draft → Pending → AwaitingPickup → Shipped → InTransit → OutForDelivery → Delivered
@@ -602,8 +603,8 @@ Draft → Pending → AwaitingPickup → Shipped → InTransit → OutForDeliver
 Check status capabilities:
 
 ```php
-use AIArmada\Shipping\States\Shipped;
-use AIArmada\Shipping\States\ShipmentStatus;
+use AIArmada\Shipping\Features\Shipments\States\Shipped;
+use AIArmada\Shipping\Features\Shipments\States\ShipmentStatus;
 
 $shipment->status->canTransitionTo(Shipped::class);
 $shipment->status->isCancellable();

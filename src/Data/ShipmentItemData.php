@@ -4,26 +4,36 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Data;
 
-use Spatie\LaravelData\Data;
-
 /**
  * Data for a shipment item.
  */
-class ShipmentItemData extends Data
+final readonly class ShipmentItemData
 {
+    /** @param array<string, mixed> $data */
+    public static function from(array $data): self
+    {
+        return new self(...$data);
+    }
+
     public function __construct(
-        public readonly string $name,
-        public readonly int $quantity,
-        public readonly ?string $sku = null,
-        public readonly ?int $weight = null, // in grams
-        public readonly ?int $declaredValue = null, // in cents
-        public readonly ?string $description = null,
-        public readonly ?string $hsCode = null,
-        public readonly ?string $originCountry = null,
-        public readonly ?string $shippableItemId = null,
-        public readonly ?string $shippableItemType = null,
-        public readonly ?string $orderItemId = null,
-        public readonly ?int $packageUnitOrdinal = null,
-        public readonly ?int $packageComponentIndex = null,
+        public string $name,
+        public int $quantity,
+        public ?string $sku = null,
+        public ?int $weight = null, // in grams
+        public ?int $declaredValue = null, // in cents
+        public ?string $description = null,
+        public ?string $hsCode = null,
+        public ?string $originCountry = null,
+        public ?string $shippableItemId = null,
+        public ?string $shippableItemType = null,
+        public ?string $orderItemId = null,
+        public ?int $packageUnitOrdinal = null,
+        public ?int $packageComponentIndex = null,
     ) {}
+
+    /** @return array<string, mixed> */
+    public function toArray(): array
+    {
+        return get_object_vars($this);
+    }
 }

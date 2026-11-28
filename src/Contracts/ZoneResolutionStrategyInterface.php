@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\Shipping\Contracts;
 
 use AIArmada\Shipping\Data\AddressData;
-use AIArmada\Shipping\Models\ShippingZone;
-use Illuminate\Support\Collection;
+use AIArmada\Shipping\Data\ZoneCandidateData;
 
 /**
  * Strategy for resolving shipping zones for a given address.
@@ -25,8 +24,8 @@ interface ZoneResolutionStrategyInterface
     /**
      * Find matching zones for the given address from the candidate pool.
      *
-     * @param  Collection<int, ShippingZone>  $candidates
-     * @return Collection<int, ShippingZone>
+     * @param  list<ZoneCandidateData>  $candidates
+     * @return list<string> Ordered candidate IDs
      */
-    public function resolve(AddressData $address, Collection $candidates): Collection;
+    public function resolve(AddressData $address, array $candidates): array;
 }

@@ -6,8 +6,10 @@ namespace AIArmada\Shipping\Drivers;
 
 use AIArmada\Shipping\Contracts\AddressValidationResult;
 use AIArmada\Shipping\Contracts\ShippingDriverInterface;
+use AIArmada\Shipping\Contracts\ZoneRateReader;
 use AIArmada\Shipping\Data\AddressData;
 use AIArmada\Shipping\Data\CarrierOperationResult;
+use AIArmada\Shipping\Data\DriverCapability;
 use AIArmada\Shipping\Data\LabelData;
 use AIArmada\Shipping\Data\PackageData;
 use AIArmada\Shipping\Data\RateQuoteData;
@@ -15,12 +17,8 @@ use AIArmada\Shipping\Data\ShipmentData;
 use AIArmada\Shipping\Data\ShippingMethodData;
 use AIArmada\Shipping\Data\TrackingData;
 use AIArmada\Shipping\Data\TrackingEventData;
-use AIArmada\Shipping\Enums\DriverCapability;
-use AIArmada\Shipping\Enums\TrackingStatus;
-use AIArmada\Shipping\Models\ShippingRate;
-use AIArmada\Shipping\Services\ShippingZoneResolver;
+use AIArmada\Shipping\Data\TrackingStatus;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
@@ -36,7 +34,7 @@ class ZoneBasedShippingDriver implements ShippingDriverInterface
      * @param  array<string, mixed>  $config
      */
     public function __construct(
-        protected readonly ShippingZoneResolver $zoneResolver,
+        protected readonly ZoneRateReader $zoneResolver,
         protected readonly array $config = []
     ) {}
 
@@ -59,59 +57,37 @@ class ZoneBasedShippingDriver implements ShippingDriverInterface
     }
 
     /**
-     * @return Collection<int, ShippingMethodData>
+     * @return list<ShippingMethodData>
      */
-    public function getAvailableMethods(): Collection
+    public function getAvailableMethods(): array
     {
-        return collect([
+        return [
             new ShippingMethodData(
                 code: 'zone_standard',
                 name: 'Zone-Based Shipping',
                 description: 'Shipping rates based on destination zone',
                 trackingAvailable: false,
             ),
-        ]);
+        ];
     }
 
     /**
      * @param  array<PackageData>  $packages
      * @param  array<string, mixed>  $options
-     * @return Collection<int, RateQuoteData>
+     * @return list<RateQuoteData>
      */
     public function getRates(
         AddressData $origin,
         AddressData $destination,
         array $packages,
         array $options = []
-    ): Collection {
-        $ownerId = $options['owner_id'] ?? null;
-        $ownerType = $options['owner_type'] ?? null;
+    ): array {
         $cartTotal = (int) ($options['cart_total'] ?? 0);
         $itemCount = (int) ($options['item_count'] ?? 0);
 
-        $zone = $this->zoneResolver->resolve($destination, $ownerId, $ownerType);
-
-        if ($zone === null) {
-            return collect();
-        }
-
         $currency = $this->config['currency'] ?? config('shipping.defaults.currency', 'MYR');
 
-        return $zone->rates()
-            ->active()
-            ->get()
-            ->filter(fn (ShippingRate $rate) => $rate->meetsConditions($packages, $cartTotal, $itemCount))
-            ->map(fn (ShippingRate $rate) => new RateQuoteData(
-                carrier: $rate->carrier_code ?? 'zone',
-                service: $rate->method_code,
-                rate: $rate->calculateRate($packages, $cartTotal),
-                currency: $currency,
-                estimatedDays: $rate->estimated_days_min ?? 3,
-                serviceDescription: $rate->name,
-                calculatedLocally: true,
-                note: $rate->description,
-            ))
-            ->values();
+        return $this->zoneResolver->quote($destination, $packages, $cartTotal, $itemCount, $currency);
     }
 
     public function createShipment(ShipmentData $data): CarrierOperationResult
@@ -142,14 +118,14 @@ class ZoneBasedShippingDriver implements ShippingDriverInterface
         return new TrackingData(
             trackingNumber: $trackingNumber,
             status: TrackingStatus::AwaitingPickup,
-            events: collect([
+            events: [
                 new TrackingEventData(
                     code: 'ZONE',
                     description: 'Zone-based shipment - tracking not available',
                     timestamp: CarbonImmutable::now(),
                     normalizedStatus: TrackingStatus::AwaitingPickup,
                 ),
-            ]),
+            ],
             carrier: 'zone',
         );
     }

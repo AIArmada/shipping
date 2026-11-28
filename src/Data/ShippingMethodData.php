@@ -4,22 +4,20 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Data;
 
-use Spatie\LaravelData\Data;
-
 /**
  * Shipping method information.
  */
-class ShippingMethodData extends Data
+final readonly class ShippingMethodData
 {
     public function __construct(
-        public readonly string $code,
-        public readonly string $name,
-        public readonly ?string $description = null,
-        public readonly ?int $minDays = null,
-        public readonly ?int $maxDays = null,
-        public readonly bool $trackingAvailable = true,
-        public readonly bool $signatureAvailable = false,
-        public readonly bool $insuranceAvailable = false,
+        public string $code,
+        public string $name,
+        public ?string $description = null,
+        public ?int $minDays = null,
+        public ?int $maxDays = null,
+        public bool $trackingAvailable = true,
+        public bool $signatureAvailable = false,
+        public bool $insuranceAvailable = false,
     ) {}
 
     public function getDeliveryEstimate(): ?string
@@ -35,5 +33,11 @@ class ShippingMethodData extends Data
         }
 
         return "{$this->minDays}-{$this->maxDays} days";
+    }
+
+    /** @return array<string, mixed> */
+    public function toArray(): array
+    {
+        return get_object_vars($this);
     }
 }

@@ -4,19 +4,17 @@ declare(strict_types=1);
 
 namespace AIArmada\Shipping\Data;
 
-use Spatie\LaravelData\Data;
-
 /**
  * Shipping label data.
  */
-class LabelData extends Data
+final readonly class LabelData
 {
     public function __construct(
-        public readonly string $format, // pdf, png, zpl
-        public readonly ?string $url = null,
-        public readonly ?string $content = null, // base64 encoded
-        public readonly ?string $size = null, // a4, a6, 4x6
-        public readonly ?string $trackingNumber = null,
+        public string $format, // pdf, png, zpl
+        public ?string $url = null,
+        public ?string $content = null, // base64 encoded
+        public ?string $size = null, // a4, a6, 4x6
+        public ?string $trackingNumber = null,
     ) {}
 
     public function hasUrl(): bool
@@ -38,5 +36,11 @@ class LabelData extends Data
         $decoded = base64_decode($this->content, true);
 
         return $decoded === false ? null : $decoded;
+    }
+
+    /** @return array<string, mixed> */
+    public function toArray(): array
+    {
+        return get_object_vars($this);
     }
 }

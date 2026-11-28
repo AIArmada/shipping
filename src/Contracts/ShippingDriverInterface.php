@@ -6,14 +6,13 @@ namespace AIArmada\Shipping\Contracts;
 
 use AIArmada\Shipping\Data\AddressData;
 use AIArmada\Shipping\Data\CarrierOperationResult;
+use AIArmada\Shipping\Data\DriverCapability;
 use AIArmada\Shipping\Data\LabelData;
 use AIArmada\Shipping\Data\PackageData;
 use AIArmada\Shipping\Data\RateQuoteData;
 use AIArmada\Shipping\Data\ShipmentData;
 use AIArmada\Shipping\Data\ShippingMethodData;
 use AIArmada\Shipping\Data\TrackingData;
-use AIArmada\Shipping\Enums\DriverCapability;
-use Illuminate\Support\Collection;
 
 /**
  * Contract for shipping carrier drivers.
@@ -41,23 +40,23 @@ interface ShippingDriverInterface
     /**
      * Get available shipping methods for this carrier.
      *
-     * @return Collection<int, ShippingMethodData>
+     * @return list<ShippingMethodData>
      */
-    public function getAvailableMethods(): Collection;
+    public function getAvailableMethods(): array;
 
     /**
      * Get rate quotes for a shipment.
      *
      * @param  array<PackageData>  $packages
      * @param  array<string, mixed>  $options
-     * @return Collection<int, RateQuoteData>
+     * @return list<RateQuoteData>
      */
     public function getRates(
         AddressData $origin,
         AddressData $destination,
         array $packages,
         array $options = []
-    ): Collection;
+    ): array;
 
     public function createShipment(ShipmentData $data): CarrierOperationResult;
 
